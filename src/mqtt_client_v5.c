@@ -661,7 +661,7 @@ static void ProcessPublishMessage(MQTT_CLIENT_V5* mqtt_client, uint8_t* initialP
                 BUFFER_HANDLE pubRel = NULL;
                 if (qosValue == DELIVER_EXACTLY_ONCE)
                 {
-                    pubRel = codec_v5_publishReceived(packetId);
+                    pubRel = codec_v5_publish_received(packetId);
                     if (pubRel == NULL)
                     {
                         LogError("Failed to allocate publish receive message.");
@@ -670,7 +670,7 @@ static void ProcessPublishMessage(MQTT_CLIENT_V5* mqtt_client, uint8_t* initialP
                 }
                 else if (qosValue == DELIVER_AT_LEAST_ONCE)
                 {
-                    pubRel = codec_v5_publishAck(packetId);
+                    pubRel = codec_v5_publish_ack(packetId);
                     if (pubRel == NULL)
                     {
                         LogError("Failed to allocate publish ack message.");
@@ -773,7 +773,7 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
                     mqtt_client->operation_cb(mqtt_client, action, (void*)&publish_ack, mqtt_client->ctx);
                     if (packet == PUBREC_TYPE)
                     {
-                        pubRel = codec_v5_publishRelease(publish_ack.packetId);
+                        pubRel = codec_v5_publish_release(publish_ack.packetId);
                         if (pubRel == NULL)
                         {
                             LogError("Failed to allocate publish release message.");
@@ -782,7 +782,7 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
                     }
                     else if (packet == PUBREL_TYPE)
                     {
-                        pubRel = codec_v5_publishComplete(publish_ack.packetId);
+                        pubRel = codec_v5_publish_complete(publish_ack.packetId);
                         if (pubRel == NULL)
                         {
                             LogError("Failed to allocate publish complete message.");

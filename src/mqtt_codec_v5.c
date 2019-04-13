@@ -190,7 +190,7 @@ BUFFER_HANDLE codec_v5_publish(MQTT_CODEC_V5_HANDLE handle, QOS_VALUE qosValue, 
     return result;
 }
 
-BUFFER_HANDLE codec_v5_publishAck(uint16_t packetId)
+BUFFER_HANDLE codec_v5_publish_ack(uint16_t packetId)
 {
     (void)packetId;
     /* Codes_SRS_MQTT_CODEC_07_013: [On success codec_v5_publishAck shall return a BUFFER_HANDLE representation of a MQTT PUBACK packet.] */
@@ -199,7 +199,7 @@ BUFFER_HANDLE codec_v5_publishAck(uint16_t packetId)
     return result;
 }
 
-BUFFER_HANDLE codec_v5_publishReceived(uint16_t packetId)
+BUFFER_HANDLE codec_v5_publish_received(uint16_t packetId)
 {
     (void)packetId;
     /* Codes_SRS_MQTT_CODEC_07_015: [On success codec_v5_publishRecieved shall return a BUFFER_HANDLE representation of a MQTT PUBREC packet.] */
@@ -208,7 +208,7 @@ BUFFER_HANDLE codec_v5_publishReceived(uint16_t packetId)
     return result;
 }
 
-BUFFER_HANDLE codec_v5_publishRelease(uint16_t packetId)
+BUFFER_HANDLE codec_v5_publish_release(uint16_t packetId)
 {
     (void)packetId;
     /* Codes_SRS_MQTT_CODEC_07_017: [On success codec_v5_publishRelease shall return a BUFFER_HANDLE representation of a MQTT PUBREL packet.] */
@@ -217,7 +217,7 @@ BUFFER_HANDLE codec_v5_publishRelease(uint16_t packetId)
     return result;
 }
 
-BUFFER_HANDLE codec_v5_publishComplete(uint16_t packetId)
+BUFFER_HANDLE codec_v5_publish_complete(uint16_t packetId)
 {
     (void)packetId;
     /* Codes_SRS_MQTT_CODEC_07_019: [On success codec_v5_publishComplete shall return a BUFFER_HANDLE representation of a MQTT PUBCOMP packet.] */
