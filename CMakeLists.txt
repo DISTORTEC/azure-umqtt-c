@@ -66,7 +66,6 @@ if(NOT ${use_installed_dependencies})
         endif()
     endif()
 
-    set_platform_files(${SHARED_UTIL_FOLDER})
 else()
     if (NOT azure_macro_utils_cFOUND)
         find_package(azure_macro_utils_c REQUIRED CONFIG)
@@ -78,8 +77,12 @@ else()
         find_package(azure_c_shared_utility REQUIRED CONFIG)
     endif ()
 	
-	message(STATUS ">>>>>>>>>>" ${azure_c_shared_utility_DIR})
+	include(${azure_c_shared_utility_DIR}/azure_c_shared_utilityConfig.cmake)
+	include(${azure_c_shared_utility_DIR}/azure_c_shared_utilityFunctions.cmake)
+	include(${azure_c_shared_utility_DIR}/azure_iot_build_rules.cmake)
 endif()
+
+set_platform_files(${SHARED_UTIL_FOLDER})
 
 set(run_e2e_tests ${original_run_e2e_tests})
 set(run_unittests ${original_run_unittests})
