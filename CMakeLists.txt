@@ -67,6 +67,18 @@ if(NOT ${use_installed_dependencies})
     endif()
 
     set_platform_files(${SHARED_UTIL_FOLDER})
+else()
+    if (NOT azure_macro_utils_cFOUND)
+        find_package(azure_macro_utils_c REQUIRED CONFIG)
+    endif ()
+    if (NOT umock_cFOUND)
+        find_package(umock_c REQUIRED CONFIG)
+    endif ()
+    if (NOT azure_c_shared_utility_FOUND)
+        find_package(azure_c_shared_utility REQUIRED CONFIG)
+    endif ()
+	
+	message(STATUS ">>>>>>>>>>" ${azure_c_shared_utility_DIR})
 endif()
 
 set(run_e2e_tests ${original_run_e2e_tests})
