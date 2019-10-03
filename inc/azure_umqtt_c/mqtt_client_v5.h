@@ -5,10 +5,10 @@
 #define MQTT_CLIENT_H
 
 #include "azure_c_shared_utility/xio.h"
-#include "azure_c_shared_utility/macro_utils.h"
 #include "azure_umqtt_c/mqttconst.h"
 #include "azure_umqtt_c/mqtt_message.h"
-#include "azure_c_shared_utility/umock_c_prod.h"
+#include "umock_c/umock_c_prod.h"
+#include "azure_macro_utils/macro_utils.h"
 
 #ifdef __cplusplus
 #include <cstdint>
@@ -16,7 +16,6 @@ extern "C" {
 #else
 #include <stdint.h>
 #endif // __cplusplus
-
 
 typedef struct MQTT_CLIENT_V5_TAG* MQTT_CLIENT_V5_HANDLE;
 
@@ -31,7 +30,7 @@ typedef struct MQTT_CLIENT_V5_TAG* MQTT_CLIENT_V5_HANDLE;
     MQTT_CLIENT_ON_PING_RESPONSE,    \
     MQTT_CLIENT_ON_DISCONNECT
 
-DEFINE_ENUM(MQTT_CLIENT_EVENT_RESULT, MQTT_CLIENT_EVENT_VALUES);
+MU_DEFINE_ENUM(MQTT_CLIENT_EVENT_RESULT, MQTT_CLIENT_EVENT_VALUES);
 
 #define MQTT_V5_CLIENT_EVENT_ERROR_VALUES     \
     MQTT_V5_CLIENT_CONNECTION_ERROR,          \
@@ -41,7 +40,7 @@ DEFINE_ENUM(MQTT_CLIENT_EVENT_RESULT, MQTT_CLIENT_EVENT_VALUES);
     MQTT_V5_CLIENT_NO_PING_RESPONSE,          \
     MQTT_V5_CLIENT_UNKNOWN_ERROR
 
-DEFINE_ENUM(MQTT_V5_CLIENT_EVENT_ERROR, MQTT_V5_CLIENT_EVENT_ERROR_VALUES);
+MU_DEFINE_ENUM(MQTT_V5_CLIENT_EVENT_ERROR, MQTT_V5_CLIENT_EVENT_ERROR_VALUES);
 
 typedef void(*ON_MQTT_OPERATION_CALLBACK)(MQTT_CLIENT_V5_HANDLE handle, MQTT_CLIENT_EVENT_RESULT actionResult, const void* msgInfo, void* callbackCtx);
 typedef void(*ON_MQTT_V5_ERROR_CALLBACK)(MQTT_V5_CLIENT_EVENT_ERROR error, void* callbackCtx);

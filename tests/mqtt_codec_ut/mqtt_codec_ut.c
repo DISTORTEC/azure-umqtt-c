@@ -13,8 +13,8 @@
 #endif
 
 #include "testrunnerswitcher.h"
-#include "umock_c.h"
-#include "umock_c_negative_tests.h"
+#include "umock_c/umock_c.h"
+#include "umock_c/umock_c_negative_tests.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,10 +38,11 @@ extern "C" {
 #include "azure_c_shared_utility/buffer_.h"
 #include "azure_c_shared_utility/gballoc.h"
 #include "azure_c_shared_utility/strings.h"
+#include "azure_umqtt_c/mqtt_codec_util.h"
 
 #undef ENABLE_MOCKS
 
-#include "azure_umqtt_c/mqtt_codec.h"
+#include "azure_umqtt_c/mqtt_codec_v3.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -121,8 +122,9 @@ STRING_HANDLE STRING_construct_sprintf(const char* format, ...)
 }
 #endif
 
-TEST_DEFINE_ENUM_TYPE(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES);
-IMPLEMENT_UMOCK_C_ENUM_TYPE(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES);
+MU_DEFINE_ENUM_STRINGS_2(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES);
+TEST_DEFINE_ENUM_2_TYPE(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES);
+IMPLEMENT_UMOCK_C_ENUM_2_TYPE(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES);
 
 static void SetupMqttLibOptions(MQTT_CLIENT_OPTIONS* options, const char* clientId,
     const char* willMsg,
@@ -164,13 +166,11 @@ extern size_t real_BUFFER_length(BUFFER_HANDLE handle);
 
 TEST_MUTEX_HANDLE test_serialize_mutex;
 
-DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
+MU_DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
 
 static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
 {
-    char temp_str[256];
-    (void)snprintf(temp_str, sizeof(temp_str), "umock_c reported error :%s", ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
-    ASSERT_FAIL(temp_str);
+    ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
 BEGIN_TEST_SUITE(mqtt_codec_ut)
@@ -195,11 +195,15 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_GLOBAL_MOCK_RETURN(STRING_c_str, "Test");
 
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_build, real_BUFFER_build);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(BUFFER_build, __LINE__);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_new, real_BUFFER_new);
-    REGISTER_GLOBAL_MOCK_HOOK(BUFFER_build, real_BUFFER_build);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(BUFFER_new, NULL);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_enlarge, real_BUFFER_enlarge);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(BUFFER_enlarge, __LINE__);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_pre_build, real_BUFFER_pre_build);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(BUFFER_pre_build, __LINE__);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_prepend, real_BUFFER_prepend);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(BUFFER_prepend, __LINE__);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_delete, real_BUFFER_delete);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_u_char, real_BUFFER_u_char);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_length, real_BUFFER_length);
@@ -229,6 +233,24 @@ TEST_FUNCTION_CLEANUP(method_cleanup)
     TEST_MUTEX_RELEASE(test_serialize_mutex);
 }
 
+static void setup_codec_connect_mocks(void)
+{
+    EXPECTED_CALL(BUFFER_new());
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
+    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
+    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
+    EXPECTED_CALL(BUFFER_new());
+    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
+    EXPECTED_CALL(BUFFER_prepend(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
+    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
+
+}
+
 static void PrintLogFunction(unsigned int options, char* format, ...)
 {
     (void)options;
@@ -255,6 +277,7 @@ static void TestOnCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, in
     }
 }
 
+#if 0
 /* Tests_SRS_MQTT_CODEC_07_002: [On success mqtt_codec_create shall return a MQTTCODEC_HANDLE value.] */
 TEST_FUNCTION(mqtt_codec_create_succeed)
 {
@@ -311,24 +334,6 @@ TEST_FUNCTION(mqtt_codec_connect_MQTTCLIENT_OPTIONS_NULL_fail)
     ASSERT_IS_NULL(handle);
 }
 
-/* Tests_SRS_MQTT_CODEC_07_010: [If any error is encountered then mqtt_codec_connect shall return NULL.] */
-TEST_FUNCTION(mqtt_codec_connect_BUFFER_enlarge_fail)
-{
-    // arrange
-    MQTT_CLIENT_OPTIONS mqttOptions = { 0 };
-    SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, NULL, NULL, "testuser", "testpassword", 20, false, true, DELIVER_AT_MOST_ONCE);
-
-    STRICT_EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
-    EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
-
-    // act
-    BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
-
-    // assert
-    ASSERT_IS_NULL(handle);
-}
-
 TEST_FUNCTION(mqtt_codec_connect_WillMsg_zero_WillTopic_nonzero_fail)
 {
     // arrange
@@ -336,7 +341,7 @@ TEST_FUNCTION(mqtt_codec_connect_WillMsg_zero_WillTopic_nonzero_fail)
     SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, TEST_WILL_MSG, NULL, "testuser", "testpassword", 20, false, true, DELIVER_AT_MOST_ONCE);
 
     STRICT_EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -356,19 +361,7 @@ TEST_FUNCTION(mqtt_codec_connect_second_succeeds)
         0x6e, 0x67, 0x6c, 0x65, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64, 0x65, 0x64, 0x5f, 0x74, 0x65, 0x73, 0x74, 0x00, 0x0a, 0x57, 0x69, \
         0x6c, 0x6c, 0x20, 0x54, 0x6f, 0x70, 0x69, 0x63, 0x00, 0x08, 0x57, 0x69, 0x6c, 0x6c, 0x20, 0x4d, 0x73, 0x67 };
 
-    EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
-    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
-    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
-    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_prepend(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
+    setup_codec_connect_mocks();
 
     // act
     BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
@@ -395,19 +388,7 @@ TEST_FUNCTION(mqtt_codec_connect_succeeds)
         0x6e, 0x67, 0x6c, 0x65, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64, 0x65, 0x64, 0x5f, 0x74, 0x65, 0x73, 0x74, 0x00, 0x08, 0x74, \
         0x65, 0x73, 0x74, 0x75, 0x73, 0x65, 0x72, 0x00, 0x0c, 0x74, 0x65, 0x73, 0x74, 0x70, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64 };
 
-    EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
-    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
-    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
-    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_prepend(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
+    setup_codec_connect_mocks();
 
     // act
     BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
@@ -421,6 +402,41 @@ TEST_FUNCTION(mqtt_codec_connect_succeeds)
 
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
     real_BUFFER_delete(handle);
+}
+
+/* Tests_SRS_MQTT_CODEC_07_010: [If any error is encountered then mqtt_codec_connect shall return NULL.] */
+TEST_FUNCTION(mqtt_codec_connect_fail)
+{
+    // arrange
+    MQTT_CLIENT_OPTIONS mqttOptions = { 0 };
+    SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, NULL, NULL, "testuser", "testpassword", 20, false, true, DELIVER_AT_MOST_ONCE);
+
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    umock_c_reset_all_calls();
+
+    setup_codec_connect_mocks();
+
+    umock_c_negative_tests_snapshot();
+
+    size_t count = umock_c_negative_tests_call_count();
+    for (size_t index = 0; index < count; index++)
+    {
+        if (umock_c_negative_tests_can_call_fail(index))
+        {
+            umock_c_negative_tests_reset();
+            umock_c_negative_tests_fail_call(index);
+
+            // act
+            BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
+
+            // assert
+            ASSERT_IS_NULL(handle);
+        }
+    }
+    //cleanup
+    umock_c_negative_tests_deinit();
 }
 
 /* Tests_SRS_MQTT_CODEC_07_009: [mqtt_codec_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
@@ -538,7 +554,7 @@ TEST_FUNCTION(mqtt_codec_disconnect_BUFFER_enlarge_fails)
 {
     // arrange
     EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -554,7 +570,7 @@ TEST_FUNCTION(mqtt_codec_ping_BUFFER_enlarge_fails)
 {
     // arrange
     EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -609,7 +625,7 @@ TEST_FUNCTION(mqtt_codec_publish_construct_BUFFER_enlarge_fail)
     // arrange
     EXPECTED_CALL(BUFFER_new());
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -629,7 +645,7 @@ TEST_FUNCTION(mqtt_codec_publish_BUFFER_enlarge_fails)
     EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
     EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -655,7 +671,7 @@ TEST_FUNCTION(mqtt_codec_publish_constructFixedHeader_fails)
 
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
 
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
@@ -828,7 +844,7 @@ TEST_FUNCTION(mqtt_codec_publish_ack_pre_build_fail)
     EXPECTED_CALL(BUFFER_new());
     STRICT_EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, 4))
         .IgnoreArgument(1)
-        .SetReturn(__FAILURE__);
+        .SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -889,7 +905,7 @@ TEST_FUNCTION(mqtt_codec_publish_received_pre_build_fail)
     STRICT_EXPECTED_CALL(BUFFER_new());
     STRICT_EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, 4))
         .IgnoreArgument(1)
-        .SetReturn(__FAILURE__);
+        .SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -934,7 +950,7 @@ TEST_FUNCTION(mqtt_codec_publish_release_pre_build_fail)
     EXPECTED_CALL(BUFFER_new());
     STRICT_EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, 4))
         .IgnoreArgument(1)
-        .SetReturn(__FAILURE__);
+        .SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -979,7 +995,7 @@ TEST_FUNCTION(mqtt_codec_publish_complete_pre_build_fail)
     EXPECTED_CALL(BUFFER_new());
     STRICT_EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, 4))
         .IgnoreArgument(1)
-        .SetReturn(__FAILURE__);
+        .SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -1035,7 +1051,7 @@ TEST_FUNCTION(mqtt_codec_subscribe_BUFFER_enlarge_fails)
 {
     // arrange
     EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -1051,7 +1067,7 @@ TEST_FUNCTION(mqtt_codec_subscribe_addListItemsToSubscribePacket_fails)
 {
     // arrange
     EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -1078,7 +1094,7 @@ TEST_FUNCTION(mqtt_codec_subscribe_constructFixedHeader_fails)
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
 
     EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
 
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
@@ -1191,7 +1207,7 @@ TEST_FUNCTION(mqtt_codec_unsubscribe_BUFFER_enlarge_fails)
 {
     // arrange
     EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -1210,7 +1226,7 @@ TEST_FUNCTION(mqtt_codec_unsubscribe_addListItemToUnsubscribePacket_BUFFER_enlar
     EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
     EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
@@ -1237,7 +1253,7 @@ TEST_FUNCTION(mqtt_codec_unsubscribe_constructFixedHeader_fails)
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
 
     EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(__FAILURE__);
+    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
@@ -1398,7 +1414,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_BUFFER_pre_build_fails)
     umock_c_reset_all_calls();
 
     EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG).SetReturn(__FAILURE__));
+    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG).SetReturn(MU_FAILURE));
 
     // act
     result = mqtt_codec_bytesReceived(handle, UNSUBACK_RESP, length);
@@ -1482,6 +1498,75 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_connack_succeed)
     mqtt_codec_destroy(handle);
 }
 
+TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_too_large_fail)
+{
+    // arrange
+    unsigned char CONNACK_RESP[] = { 0x20, 0xFF, 0xFF, 0xFF, 0x8F, 0x1, 0x0 };
+    size_t length = sizeof(CONNACK_RESP) / sizeof(CONNACK_RESP[0]);
+
+    TEST_COMPLETE_DATA_INSTANCE testData = { 0 };
+    testData.dataHeader = CONNACK_RESP + FIXED_HEADER_SIZE;
+    testData.Length = 2;
+
+    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+
+    umock_c_reset_all_calls();
+
+    g_curr_packet_type = CONNACK_TYPE;
+
+    // act
+    int result = mqtt_codec_bytesReceived(handle, CONNACK_RESP, length);
+
+    // assert
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    ASSERT_IS_FALSE(g_callbackInvoked);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    mqtt_codec_destroy(handle);
+}
+
+TEST_FUNCTION(mqtt_codec_bytesReceived_after_large_buffer_succeed)
+{
+    // arrange
+    unsigned char LARGE_CONNACK_RESP[] = { 0x20, 0xFF, 0xFF, 0xFF, 0x8F, 0x1, 0x0 };
+    unsigned char CONNACK_RESP[] = { 0x20, 0x2, 0x00, 0x05 };
+    size_t large_len = sizeof(LARGE_CONNACK_RESP) / sizeof(LARGE_CONNACK_RESP[0]);
+    size_t length = sizeof(CONNACK_RESP) / sizeof(CONNACK_RESP[0]);
+
+    TEST_COMPLETE_DATA_INSTANCE testData = { 0 };
+    testData.dataHeader = CONNACK_RESP + FIXED_HEADER_SIZE;
+    testData.Length = 2;
+
+    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+
+    int result = mqtt_codec_bytesReceived(handle, LARGE_CONNACK_RESP, large_len);
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    mqtt_codec_reset(handle);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(BUFFER_new());
+    STRICT_EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
+
+    g_curr_packet_type = CONNACK_TYPE;
+
+    // act
+    result = mqtt_codec_bytesReceived(handle, CONNACK_RESP, length);
+
+    // assert
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(g_callbackInvoked);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    mqtt_codec_destroy(handle);
+}
+
 TEST_FUNCTION(mqtt_codec_bytesReceived_connack_auth_reject_succeed)
 {
     // arrange
@@ -1507,9 +1592,10 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_connack_auth_reject_succeed)
     g_curr_packet_type = CONNACK_TYPE;
 
     // act
-    mqtt_codec_bytesReceived(handle, CONNACK_RESP, length);
+    int result = mqtt_codec_bytesReceived(handle, CONNACK_RESP, length);
 
     // assert
+    ASSERT_ARE_EQUAL(int, 0, result);
     ASSERT_IS_TRUE(g_callbackInvoked);
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
@@ -1920,25 +2006,17 @@ TEST_FUNCTION(mqtt_codec_connect_trace_succeeds)
     EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
     EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(STRING_new());
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(IGNORED_PTR_ARG, IGNORED_NUM_ARG))
-        .IgnoreArgument_s1()
-        .IgnoreArgument_s2();
-    STRICT_EXPECTED_CALL(STRING_delete(IGNORED_PTR_ARG))
-        .IgnoreArgument_handle();
-    STRICT_EXPECTED_CALL(STRING_copy(IGNORED_PTR_ARG, IGNORED_NUM_ARG))
-        .IgnoreArgument_s1()
-        .IgnoreArgument_s2();
+    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(STRING_delete(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(STRING_copy(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_new());
     EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
     EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_prepend(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(IGNORED_PTR_ARG, IGNORED_NUM_ARG))
-        .IgnoreArgument_s1()
-        .IgnoreArgument_s2();
-    STRICT_EXPECTED_CALL(STRING_delete(IGNORED_PTR_ARG))
-        .IgnoreArgument_handle();
+    STRICT_EXPECTED_CALL(STRING_concat_with_STRING(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(STRING_delete(IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
 
     // act
@@ -1954,5 +2032,6 @@ TEST_FUNCTION(mqtt_codec_connect_trace_succeeds)
 
     real_BUFFER_delete(handle);
 }
+#endif
 
 END_TEST_SUITE(mqtt_codec_ut)

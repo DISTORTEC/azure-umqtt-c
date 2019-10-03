@@ -13,13 +13,13 @@
 #endif
 
 #include "testrunnerswitcher.h"
-#include "umock_c.h"
-#include "umock_c_negative_tests.h"
-#include "umocktypes_charptr.h"
-#include "umocktypes_stdint.h"
-#include "umocktypes_bool.h"
-#include "umocktypes.h"
-#include "umocktypes_c.h"
+#include "umock_c/umock_c.h"
+#include "umock_c/umock_c_negative_tests.h"
+#include "umock_c/umocktypes_charptr.h"
+#include "umock_c/umocktypes_stdint.h"
+#include "umock_c/umocktypes_bool.h"
+#include "umock_c/umocktypes.h"
+#include "umock_c/umocktypes_c.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -86,18 +86,17 @@ typedef struct TEST_COMPLETE_DATA_INSTANCE_TAG
     size_t Length;
 } TEST_COMPLETE_DATA_INSTANCE;
 
-TEST_DEFINE_ENUM_TYPE(QOS_VALUE, QOS_VALUE_VALUES);
-IMPLEMENT_UMOCK_C_ENUM_TYPE(QOS_VALUE, QOS_VALUE_VALUES);
+MU_DEFINE_ENUM_STRINGS_2(QOS_VALUE, QOS_VALUE_VALUES);
+TEST_DEFINE_ENUM_2_TYPE(QOS_VALUE, QOS_VALUE_VALUES);
+IMPLEMENT_UMOCK_C_ENUM_2_TYPE(QOS_VALUE, QOS_VALUE_VALUES);
 
 TEST_MUTEX_HANDLE test_serialize_mutex;
 
-DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
+MU_DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
 
 static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
 {
-    char temp_str[256];
-    (void)snprintf(temp_str, sizeof(temp_str), "umock_c reported error :%s", ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
-    ASSERT_FAIL(temp_str);
+    ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
 BEGIN_TEST_SUITE(mqtt_message_ut)
@@ -133,7 +132,6 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(StringToken_Split, 1);
     REGISTER_GLOBAL_MOCK_RETURN(mallocAndStrcpy_s, 0);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(mallocAndStrcpy_s, 1);
-
 }
 
 TEST_SUITE_CLEANUP(suite_cleanup)
@@ -664,7 +662,6 @@ TEST_FUNCTION(mqttmessage_getTopicLevels_negative_tests)
     for (i = 0; i < umock_c_negative_tests_call_count(); i++)
     {
         // arrange
-        char error_msg[64];
         int result;
 
         umock_c_negative_tests_reset();
@@ -674,8 +671,7 @@ TEST_FUNCTION(mqttmessage_getTopicLevels_negative_tests)
         result = mqttmessage_getTopicLevels(handle, &levels, &count);
 
         // assert
-        sprintf(error_msg, "On failed call %zu", i);
-        ASSERT_ARE_NOT_EQUAL(int, 0, result, error_msg);
+        ASSERT_ARE_NOT_EQUAL(int, 0, result, "On failed call %zu", i);
     }
 
     // cleanup

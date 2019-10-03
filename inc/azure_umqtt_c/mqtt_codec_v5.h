@@ -5,8 +5,8 @@
 #define MQTT_CODEC_V5_H
 
 #include "azure_c_shared_utility/xio.h"
-#include "azure_c_shared_utility/umock_c_prod.h"
 #include "azure_c_shared_utility/buffer_.h"
+#include "umock_c/umock_c_prod.h"
 
 #include "azure_umqtt_c/mqttconst.h"
 #include "azure_umqtt_c/mqtt_codec_util.h"
@@ -30,7 +30,7 @@ MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v5_publish_complete, uint16_t, packetId
 MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v5_ping);
 MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v5_subscribe, MQTT_CODEC_V5_HANDLE, handle, uint16_t, packetId, SUBSCRIBE_PAYLOAD*, subscribeList, size_t, count);
 MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v5_unsubscribe, MQTT_CODEC_V5_HANDLE, handle, uint16_t,  packetId, const char**, unsubscribeList, size_t, count);
-MOCKABLE_FUNCTION(, int, codec_v5_set_trace, MQTT_CODEC_V5_HANDLE, handle, TRACE_LOG_VALUE, trace_func, void*, trace_ctx);
+MOCKABLE_FUNCTION(, int, codec_v5_set_trace, MQTT_CODEC_V5_HANDLE, handle, TRACE_LOG_CALLBACK, trace_func, void*, trace_ctx);
 MOCKABLE_FUNCTION(, ON_BYTES_RECEIVED, codec_v5_get_recv_func);
 
 #ifdef __cplusplus

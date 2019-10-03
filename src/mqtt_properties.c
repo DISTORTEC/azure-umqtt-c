@@ -102,7 +102,7 @@ int mqtt_prop_add_byte_property(MQTT_PROPERTY_TYPE type, uint8_t value)
     if ((prop_item = (MQTT_PROP_ITEM*)malloc(sizeof(MQTT_PROP_ITEM))) == NULL)
     {
         LogError("failure allocating property item");
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else
     {

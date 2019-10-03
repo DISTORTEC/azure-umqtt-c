@@ -7,8 +7,8 @@
 #include "azure_c_shared_utility/gballoc.h"
 #include "azure_c_shared_utility/buffer_.h"
 #include "azure_c_shared_utility/strings.h"
-#include "azure_c_shared_utility/macro_utils.h"
 #include "azure_c_shared_utility/xlogging.h"
+#include "azure_macro_utils/macro_utils.h"
 
 #include "azure_umqtt_c/mqtt_codec_v5.h"
 #include "azure_umqtt_c/mqtt_properties.h"
@@ -44,7 +44,7 @@ typedef struct CODEC_V5_INSTANCE_TAG
     CONTROL_PACKET_TYPE currPacket;
     BUFFER_HANDLE headerData;
 
-    TRACE_LOG_VALUE trace_func;
+    TRACE_LOG_CALLBACK trace_func;
     void* trace_ctx;
 } CODEC_V5_INSTANCE;
 
@@ -289,12 +289,12 @@ ON_BYTES_RECEIVED codec_v5_get_recv_func(void)
     return on_bytes_recv;
 }
 
-int codec_v5_set_trace(MQTT_CODEC_V5_HANDLE handle, TRACE_LOG_VALUE trace_func, void* trace_ctx)
+int codec_v5_set_trace(MQTT_CODEC_V5_HANDLE handle, TRACE_LOG_CALLBACK trace_func, void* trace_ctx)
 {
     int result;
     if (handle == NULL)
     {
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else
     {

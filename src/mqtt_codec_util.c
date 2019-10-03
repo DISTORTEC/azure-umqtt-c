@@ -13,7 +13,7 @@
 #define FLAG_VALUE_BYTE(p)                  ((uint8_t)(((uint8_t)(p)) & 0xf))
 #define CONNECT_VAR_HEADER_SIZE             10
 
-BUFFER_HANDLE construct_connect_var_header(TRACE_LOG_VALUE trace_func, void* trace_ctx, const MQTT_CLIENT_OPTIONS* mqtt_options, uint8_t protocol_level)
+BUFFER_HANDLE construct_connect_var_header(TRACE_LOG_CALLBACK trace_func, void* trace_ctx, const MQTT_CLIENT_OPTIONS* mqtt_options, uint8_t protocol_level)
 {
     BUFFER_HANDLE result;
     if ((result = BUFFER_create_with_size(CONNECT_VAR_HEADER_SIZE)) == NULL)
@@ -50,7 +50,7 @@ int encode_variable_byte_integer(uint8_t stream_bytes[4], size_t* pos, uint32_t*
         multiplier *= NEXT_128_CHUNK;
         if (multiplier > 128 * 128 * 128)
         {
-            result = __FAILURE__;
+            result = MU_FAILURE;
             break;
         }
     } while ((encoded_byte & NEXT_128_CHUNK) != 0);
@@ -86,7 +86,7 @@ int construct_fixed_header(BUFFER_HANDLE ctrl_packet, CONTROL_PACKET_TYPE packet
     if (fixed_hdr == NULL)
     {
         LogError(FAILURE_MSG_CREATE_BUFFER);
-        result = __FAILURE__;
+        result = MU_FAILURE;
     }
     else
     {

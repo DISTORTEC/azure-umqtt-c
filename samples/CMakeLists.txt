@@ -13,4 +13,4 @@ function(add_sample_directory whatIsBuilding)
 endfunction()
 
 add_sample_directory(mqtt_client_sample)
-add_sample_directory(mqtt_v5_sample)
+add_sample_directory(mqtt_v5_client_sample)
