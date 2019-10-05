@@ -131,7 +131,7 @@ extern "C" {
     {
         (void)callContext;
         g_packetComplete = packetComplete;
-        return my_gballoc_malloc(1);
+        return (MQTT_CODEC_V3_HANDLE)my_gballoc_malloc(1);
     }
 
     static void my_codec_v3_destroy(MQTT_CODEC_V3_HANDLE handle)
@@ -266,7 +266,9 @@ extern "C" {
 
     static void codec_bytes_recieved(void* context, const unsigned char* buffer, size_t size)
     {
-
+        (void)context;
+        (void)buffer;
+        (void)size;
     }
 
 #ifdef __cplusplus

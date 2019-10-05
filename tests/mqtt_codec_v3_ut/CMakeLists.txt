@@ -10,6 +10,7 @@ ${theseTestsName}.c
 )
 
 set(${theseTestsName}_c_files
+    ../../src/mqtt_codec_util.c
     ../../src/mqtt_codec_v3.c
     ../../deps/c-utility/tests/real_test_files/real_buffer.c
 )

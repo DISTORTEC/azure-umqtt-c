@@ -39,11 +39,11 @@ extern "C" {
 #include "azure_c_shared_utility/buffer_.h"
 #include "azure_c_shared_utility/gballoc.h"
 #include "azure_c_shared_utility/strings.h"
-#include "azure_umqtt_c/mqtt_codec_util.h"
 
 #undef ENABLE_MOCKS
 
 #include "azure_umqtt_c/mqtt_codec_v3.h"
+#include "azure_umqtt_c/mqtt_codec_util.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -154,6 +154,7 @@ extern "C" {
 #endif
 
 extern BUFFER_HANDLE real_BUFFER_new(void);
+extern BUFFER_HANDLE real_BUFFER_create_with_size(size_t buff_size);
 extern BUFFER_HANDLE real_BUFFER_create(const unsigned char* source, size_t size);
 extern int real_BUFFER_build(BUFFER_HANDLE handle, const unsigned char* source, size_t size);
 extern int real_BUFFER_enlarge(BUFFER_HANDLE handle, size_t enlargeSize);
@@ -166,17 +167,6 @@ extern size_t real_BUFFER_length(BUFFER_HANDLE handle);
 #ifdef __cplusplus
 }
 #endif
-
-BUFFER_HANDLE my_construct_connect_var_header(TRACE_LOG_CALLBACK trace_func, void* trace_ctx, const MQTT_CLIENT_OPTIONS* mqtt_options, uint8_t protocol_level)
-{
-    (void)trace_func;
-    (void)trace_ctx;
-    (void)mqtt_options;
-    (void)protocol_level;
-    const unsigned char CONNECT_HEADER[] = { 0x10, 0x36, 0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0x26, 0x00, 0x14 };
-    size_t len = sizeof(CONNECT_HEADER)/sizeof(CONNECT_HEADER[0]);
-    return real_BUFFER_create(CONNECT_HEADER, len);
-}
 
 TEST_MUTEX_HANDLE test_serialize_mutex;
 
@@ -216,6 +206,8 @@ TEST_SUITE_INITIALIZE(suite_init)
 
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_build, real_BUFFER_build);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(BUFFER_build, __LINE__);
+    REGISTER_GLOBAL_MOCK_HOOK(BUFFER_create_with_size, real_BUFFER_create_with_size);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(BUFFER_create_with_size, NULL);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_new, real_BUFFER_new);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(BUFFER_new, NULL);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_enlarge, real_BUFFER_enlarge);
@@ -227,9 +219,6 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_delete, real_BUFFER_delete);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_u_char, real_BUFFER_u_char);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_length, real_BUFFER_length);
-
-    REGISTER_GLOBAL_MOCK_HOOK(construct_connect_var_header, my_construct_connect_var_header);
-    REGISTER_GLOBAL_MOCK_FAIL_RETURN(construct_connect_var_header, NULL);
 }
 
 TEST_SUITE_CLEANUP(suite_cleanup)
@@ -258,22 +247,26 @@ TEST_FUNCTION_CLEANUP(method_cleanup)
 
 static void setup_codec_connect_mocks(void)
 {
-    /*EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
-    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
-    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
-    EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
-    EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
-    EXPECTED_CALL(BUFFER_prepend(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();*/
-    STRICT_EXPECTED_CALL(construct_connect_var_header(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_create_with_size(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
     STRICT_EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
+    STRICT_EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+
+    STRICT_EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
+
+    STRICT_EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
+    STRICT_EXPECTED_CALL(BUFFER_create_with_size(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
+    STRICT_EXPECTED_CALL(BUFFER_prepend(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
+
+
+    /*STRICT_EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
+    STRICT_EXPECTED_CALL(BUFFER_new());
+    STRICT_EXPECTED_CALL(BUFFER_pre_build(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
+    STRICT_EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();*/
 }
 
 static void PrintLogFunction(unsigned int options, char* format, ...)
@@ -397,7 +390,10 @@ TEST_FUNCTION(codec_v3_connect_WillMsg_zero_WillTopic_nonzero_fail)
     MQTT_CLIENT_OPTIONS mqtt_options = { 0 };
     setup_mqtt_options(&mqtt_options, TEST_CLIENT_ID, TEST_WILL_MSG, NULL, "testuser", "testpassword", MQTT_KEEP_ALIVE, false, true, DELIVER_AT_MOST_ONCE);
 
-    setup_codec_connect_mocks();
+    STRICT_EXPECTED_CALL(BUFFER_create_with_size(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
+    STRICT_EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
+    STRICT_EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 
     // act
     BUFFER_HANDLE buffer = codec_v3_connect(handle, &mqtt_options);
@@ -427,14 +423,16 @@ TEST_FUNCTION(codec_v3_connect_second_succeeds)
     // act
     BUFFER_HANDLE buffer = codec_v3_connect(handle, &mqtt_options);
 
-    unsigned char* data = real_BUFFER_u_char(buffer);
-    size_t length = BUFFER_length(buffer);
-
     // assert
     ASSERT_IS_NOT_NULL(buffer);
-    ASSERT_ARE_EQUAL(int, 0, memcmp(data, CONNECT_VALUE, length));
-
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    unsigned char* data = real_BUFFER_u_char(buffer);
+    size_t actual_length = BUFFER_length(buffer);
+    size_t expected_len = sizeof(CONNECT_VALUE) / sizeof(CONNECT_VALUE[0]);
+    ASSERT_ARE_EQUAL(int, expected_len, actual_length, "Actual len and expected len are different");
+    ASSERT_ARE_EQUAL(int, 0, memcmp(data, CONNECT_VALUE, actual_length));
+
     real_BUFFER_delete(buffer);
 
     codec_v3_destroy(handle);
