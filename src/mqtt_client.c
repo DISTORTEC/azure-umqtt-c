@@ -203,7 +203,7 @@ static uint8_t byteutil_readByte(uint8_t** buffer)
     return result;
 }
 
-static void sendComplete(void* context, IO_SEND_RESULT send_result)
+static void send_complete(void* context, IO_SEND_RESULT send_result)
 {
     MQTT_CLIENT* mqtt_client = (MQTT_CLIENT*)context;
     if (mqtt_client != NULL)
@@ -235,7 +235,7 @@ static void sendComplete(void* context, IO_SEND_RESULT send_result)
 }
 
 #ifndef NO_LOGGING
-static void getLogTime(char* timeResult, size_t len)
+static void get_log_time(char* timeResult, size_t len)
 {
     if (timeResult != NULL)
     {
@@ -263,7 +263,7 @@ static void getLogTime(char* timeResult, size_t len)
 }
 
 #ifdef ENABLE_RAW_TRACE
-static const char* retrievePacketType(CONTROL_PACKET_TYPE packet)
+static const char* retrieve_packet_type(CONTROL_PACKET_TYPE packet)
 {
     switch (packet&CONNECT_PACKET_MASK)
     {
@@ -287,14 +287,14 @@ static const char* retrievePacketType(CONTROL_PACKET_TYPE packet)
     }
 }
 
-static void logOutgoingRawTrace(MQTT_CLIENT* mqtt_client, const uint8_t* data, size_t length)
+static void log_outgoing_raw_trace(MQTT_CLIENT* mqtt_client, const uint8_t* data, size_t length)
 {
     if (mqtt_client != NULL && data != NULL && length > 0 && is_raw_trace_enabled(mqtt_client))
     {
         char tmBuffer[TIME_MAX_BUFFER];
-        getLogTime(tmBuffer, TIME_MAX_BUFFER);
+        get_log_time(tmBuffer, TIME_MAX_BUFFER);
 
-        LOG(AZ_LOG_TRACE, 0, "-> %s %s: ", tmBuffer, retrievePacketType((unsigned char)data[0]));
+        LOG(AZ_LOG_TRACE, 0, "-> %s %s: ", tmBuffer, retrieve_packet_type((unsigned char)data[0]));
         size_t index = 0;
         for (index = 0; index < length; index++)
         {
@@ -304,16 +304,16 @@ static void logOutgoingRawTrace(MQTT_CLIENT* mqtt_client, const uint8_t* data, s
     }
 }
 
-static void logIncomingRawTrace(MQTT_CLIENT* mqtt_client, CONTROL_PACKET_TYPE packet, uint8_t flags, const uint8_t* data, size_t length)
+static void log_incoming_raw_trace(MQTT_CLIENT* mqtt_client, CONTROL_PACKET_TYPE packet, uint8_t flags, const uint8_t* data, size_t length)
 {
     if (mqtt_client != NULL && is_raw_trace_enabled(mqtt_client))
     {
         if (data != NULL && length > 0)
         {
             char tmBuffer[TIME_MAX_BUFFER];
-            getLogTime(tmBuffer, TIME_MAX_BUFFER);
+            get_log_time(tmBuffer, TIME_MAX_BUFFER);
 
-            LOG(AZ_LOG_TRACE, 0, "<- %s %s: 0x%02x 0x%02x ", tmBuffer, retrievePacketType((CONTROL_PACKET_TYPE)packet), (unsigned int)(packet | flags), (unsigned int)length);
+            LOG(AZ_LOG_TRACE, 0, "<- %s %s: 0x%02x 0x%02x ", tmBuffer, retrieve_packet_type((CONTROL_PACKET_TYPE)packet), (unsigned int)(packet | flags), (unsigned int)length);
             size_t index = 0;
             for (index = 0; index < length; index++)
             {
@@ -324,8 +324,8 @@ static void logIncomingRawTrace(MQTT_CLIENT* mqtt_client, CONTROL_PACKET_TYPE pa
         else if (packet == PINGRESP_TYPE)
         {
             char tmBuffer[TIME_MAX_BUFFER];
-            getLogTime(tmBuffer, TIME_MAX_BUFFER);
-            LOG(AZ_LOG_TRACE, LOG_LINE, "<- %s %s: 0x%02x 0x%02x ", tmBuffer, retrievePacketType((CONTROL_PACKET_TYPE)packet), (unsigned int)(packet | flags), (unsigned int)length);
+            get_log_time(tmBuffer, TIME_MAX_BUFFER);
+            LOG(AZ_LOG_TRACE, LOG_LINE, "<- %s %s: 0x%02x 0x%02x ", tmBuffer, retrieve_packet_type((CONTROL_PACKET_TYPE)packet), (unsigned int)(packet | flags), (unsigned int)length);
         }
     }
 }
@@ -336,7 +336,7 @@ static void log_outgoing_trace(MQTT_CLIENT* mqtt_client, const char* trace_log)
     if (mqtt_client != NULL && is_trace_enabled(mqtt_client) && trace_log != NULL)
     {
         char tmBuffer[TIME_MAX_BUFFER];
-        getLogTime(tmBuffer, TIME_MAX_BUFFER);
+        get_log_time(tmBuffer, TIME_MAX_BUFFER);
         LOG(AZ_LOG_TRACE, LOG_LINE, "-> %s %s", tmBuffer, trace_log);
     }
 }
@@ -346,12 +346,12 @@ static void log_incoming_trace(MQTT_CLIENT* mqtt_client, const char* trace_log)
     if (mqtt_client != NULL && is_trace_enabled(mqtt_client) && trace_log != NULL)
     {
         char tmBuffer[TIME_MAX_BUFFER];
-        getLogTime(tmBuffer, TIME_MAX_BUFFER);
+        get_log_time(tmBuffer, TIME_MAX_BUFFER);
         LOG(AZ_LOG_TRACE, LOG_LINE, "<- %s %s", tmBuffer, trace_log);
     }
 }
 #else // NO_LOGGING
-static void logOutgoingRawTrace(MQTT_CLIENT* mqtt_client, const uint8_t* data, size_t length)
+static void log_outgoing_raw_trace(MQTT_CLIENT* mqtt_client, const uint8_t* data, size_t length)
 {
     AZURE_UNREFERENCED_PARAMETER(mqtt_client);
     AZURE_UNREFERENCED_PARAMETER(data);
@@ -370,7 +370,7 @@ static void log_incoming_trace(MQTT_CLIENT* mqtt_client, STRING_HANDLE trace_log
     AZURE_UNREFERENCED_PARAMETER(trace_log);
 }
 
-static void logIncomingRawTrace(MQTT_CLIENT* mqtt_client, CONTROL_PACKET_TYPE packet, uint8_t flags, const uint8_t* data, size_t length)
+static void log_incoming_raw_trace(MQTT_CLIENT* mqtt_client, CONTROL_PACKET_TYPE packet, uint8_t flags, const uint8_t* data, size_t length)
 {
     AZURE_UNREFERENCED_PARAMETER(mqtt_client);
     AZURE_UNREFERENCED_PARAMETER(packet);
@@ -382,13 +382,16 @@ static void logIncomingRawTrace(MQTT_CLIENT* mqtt_client, CONTROL_PACKET_TYPE pa
 
 static void flush_trace_log(MQTT_CLIENT* mqtt_client)
 {
-    log_outgoing_trace(mqtt_client, mqtt_client->trace_line);
-    free(mqtt_client->trace_line);
-    mqtt_client->trace_line = NULL;
-    mqtt_client->trace_alloc = 0;
+    if (is_trace_enabled(mqtt_client))
+    {
+        log_outgoing_trace(mqtt_client, mqtt_client->trace_line);
+        free(mqtt_client->trace_line);
+        mqtt_client->trace_line = NULL;
+        mqtt_client->trace_alloc = 0;
+    }
 }
 
-static int sendPacketItem(MQTT_CLIENT* mqtt_client, const unsigned char* data, size_t length)
+static int send_packet_msg(MQTT_CLIENT* mqtt_client, const unsigned char* data, size_t length)
 {
     int result;
 
@@ -399,7 +402,7 @@ static int sendPacketItem(MQTT_CLIENT* mqtt_client, const unsigned char* data, s
     }
     else
     {
-        result = xio_send(mqtt_client->xioHandle, (const void*)data, length, sendComplete, mqtt_client);
+        result = xio_send(mqtt_client->xioHandle, (const void*)data, length, send_complete, mqtt_client);
         if (result != 0)
         {
             LogError("Failure sending control packet data");
@@ -408,14 +411,14 @@ static int sendPacketItem(MQTT_CLIENT* mqtt_client, const unsigned char* data, s
         else
         {
 #ifdef ENABLE_RAW_TRACE
-            logOutgoingRawTrace(mqtt_client, (const uint8_t*)data, length);
+            log_outgoing_raw_trace(mqtt_client, (const uint8_t*)data, length);
 #endif
         }
     }
     return result;
 }
 
-static void onOpenComplete(void* context, IO_OPEN_RESULT open_result)
+static void on_open_complete(void* context, IO_OPEN_RESULT open_result)
 {
     MQTT_CLIENT* mqtt_client = (MQTT_CLIENT*)context;
     if (mqtt_client != NULL)
@@ -435,7 +438,7 @@ static void onOpenComplete(void* context, IO_OPEN_RESULT open_result)
             {
                 size_t size = BUFFER_length(connPacket);
                 /*Codes_SRS_MQTT_CLIENT_07_009: [On success mqtt_client_connect shall send the MQTT CONNECT to the endpoint.]*/
-                if (sendPacketItem(mqtt_client, BUFFER_u_char(connPacket), size) != 0)
+                if (send_packet_msg(mqtt_client, BUFFER_u_char(connPacket), size) != 0)
                 {
                     LogError("Error: failure sending connect packet");
                     // Set the status to pending close because we connot continue
@@ -469,24 +472,7 @@ static void onOpenComplete(void* context, IO_OPEN_RESULT open_result)
     }
 }
 
-/*static void onBytesReceived(void* context, const unsigned char* buffer, size_t size)
-{
-    MQTT_CLIENT* mqtt_client = (MQTT_CLIENT*)context;
-    if (mqtt_client != NULL)
-    {
-        if (codec_v3_bytes_recv(mqtt_client->codec_handle, buffer, size) != 0)
-        {
-            mqtt_codec_reset(mqtt_client->codec_handle);
-            set_error_callback(mqtt_client, MQTT_CLIENT_PARSE_ERROR);
-        }
-    }
-    else
-    {
-        LogError("Error: mqtt_client is NULL");
-    }
-}*/
-
-static void onIoError(void* context)
+static void on_io_error(void* context)
 {
     MQTT_CLIENT* mqtt_client = (MQTT_CLIENT*)context;
     if (mqtt_client != NULL && mqtt_client->fnOperationCallback)
@@ -534,7 +520,7 @@ static void clear_mqtt_options(MQTT_CLIENT* mqtt_client)
     }
 }
 
-static int cloneMqttOptions(MQTT_CLIENT* mqtt_client, const MQTT_CLIENT_OPTIONS* mqttOptions)
+static int clone_mqtt_options(MQTT_CLIENT* mqtt_client, const MQTT_CLIENT_OPTIONS* mqttOptions)
 {
     int result = 0;
     char* temp_option;
@@ -637,7 +623,7 @@ static int cloneMqttOptions(MQTT_CLIENT* mqtt_client, const MQTT_CLIENT_OPTIONS*
     return result;
 }
 
-static void ProcessPublishMessage(MQTT_CLIENT* mqtt_client, uint8_t* initialPos, size_t packetLength, int flags)
+static void process_publish_msg(MQTT_CLIENT* mqtt_client, uint8_t* initialPos, size_t packetLength, int flags)
 {
     bool isDuplicateMsg = (flags & DUPLICATE_FLAG_MASK) ? true : false;
     bool isRetainMsg = (flags & RETAIN_FLAG_MASK) ? true : false;
@@ -729,7 +715,7 @@ static void ProcessPublishMessage(MQTT_CLIENT* mqtt_client, uint8_t* initialPos,
                 if (pubRel != NULL)
                 {
                     size_t size = BUFFER_length(pubRel);
-                    if (sendPacketItem(mqtt_client, BUFFER_u_char(pubRel), size) != 0)
+                    if (send_packet_msg(mqtt_client, BUFFER_u_char(pubRel), size) != 0)
                     {
                         LogError("Failed sending publish reply.");
                         set_error_callback(mqtt_client, MQTT_CLIENT_COMMUNICATION_ERROR);
@@ -749,7 +735,7 @@ static void ProcessPublishMessage(MQTT_CLIENT* mqtt_client, uint8_t* initialPos,
     }
 }
 
-static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData)
+static void recv_complete_callback(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData)
 {
     MQTT_CLIENT* mqtt_client = (MQTT_CLIENT*)context;
     if (mqtt_client != NULL)
@@ -763,7 +749,7 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
         }
 
 #ifdef ENABLE_RAW_TRACE
-        logIncomingRawTrace(mqtt_client, packet, (uint8_t)flags, iterator, packetLength);
+        log_incoming_raw_trace(mqtt_client, packet, (uint8_t)flags, iterator, packetLength);
 #endif
         if ((iterator != NULL && packetLength > 0) || packet == PINGRESP_TYPE)
         {
@@ -797,7 +783,7 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
                 }
                 case PUBLISH_TYPE:
                 {
-                    ProcessPublishMessage(mqtt_client, iterator, packetLength, flags);
+                    process_publish_msg(mqtt_client, iterator, packetLength, flags);
                     break;
                 }
                 case PUBACK_TYPE:
@@ -845,7 +831,7 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
                     if (pubRel != NULL)
                     {
                         size_t size = BUFFER_length(pubRel);
-                        if (sendPacketItem(mqtt_client, BUFFER_u_char(pubRel), size) != 0)
+                        if (send_packet_msg(mqtt_client, BUFFER_u_char(pubRel), size) != 0)
                         {
                             LogError("Failed sending publish reply.");
                             set_error_callback(mqtt_client, MQTT_CLIENT_COMMUNICATION_ERROR);
@@ -942,7 +928,7 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
     }
     else
     {
-        LogError("recvCompleteCallback context failed.");
+        LogError("recv_complete_callback context failed.");
     }
 }
 
@@ -1020,7 +1006,7 @@ static void trace_logger(void* context, const char* format, ...)
 static int init_codec_provider_info(MQTT_CLIENT* mqtt_client)
 {
     int result;
-    if ((mqtt_client->codec_handle = codec_v3_create(recvCompleteCallback, mqtt_client)) == NULL)
+    if ((mqtt_client->codec_handle = codec_v3_create(recv_complete_callback, mqtt_client)) == NULL)
     {
         LogError("Failure creating codec handle");
         result = MU_FAILURE;
@@ -1062,7 +1048,6 @@ MQTT_CLIENT_HANDLE mqtt_client_init(ON_MQTT_MESSAGE_RECV_CALLBACK msgRecv, ON_MQ
             result->maxPingRespTime = DEFAULT_MAX_PING_RESPONSE_TIME;
             if ((result->packetTickCntr = tickcounter_create()) == NULL)
             {
-                /*Codes_SRS_MQTT_CLIENT_07_002: [If any failure is encountered then mqttclient_init shall return NULL.]*/
                 LogError("mqtt_client_init failure: tickcounter_create failure");
                 free(result);
                 result = NULL;
@@ -1082,10 +1067,8 @@ MQTT_CLIENT_HANDLE mqtt_client_init(ON_MQTT_MESSAGE_RECV_CALLBACK msgRecv, ON_MQ
 
 void mqtt_client_deinit(MQTT_CLIENT_HANDLE handle)
 {
-    /*Codes_SRS_MQTT_CLIENT_07_004: [If the parameter handle is NULL then function mqtt_client_deinit shall do nothing.]*/
     if (handle != NULL)
     {
-        /*Codes_SRS_MQTT_CLIENT_07_005: [mqtt_client_deinit shall deallocate all memory allocated in this unit.]*/
         MQTT_CLIENT* mqtt_client = (MQTT_CLIENT*)handle;
         tickcounter_destroy(mqtt_client->packetTickCntr);
         codec_v3_destroy(mqtt_client->codec_handle);
@@ -1097,7 +1080,6 @@ void mqtt_client_deinit(MQTT_CLIENT_HANDLE handle)
 int mqtt_client_connect(MQTT_CLIENT_HANDLE handle, XIO_HANDLE xioHandle, MQTT_CLIENT_OPTIONS* mqttOptions)
 {
     int result;
-    /*SRS_MQTT_CLIENT_07_006: [If any of the parameters handle, ioHandle, or mqttOptions are NULL then mqtt_client_connect shall return a non-zero value.]*/
     if (handle == NULL || mqttOptions == NULL || xioHandle == NULL)
     {
         LogError("mqtt_client_connect: NULL argument (handle = %p, mqttOptions = %p, xioHandle: %p)", handle, mqttOptions, xioHandle);
@@ -1112,15 +1094,13 @@ int mqtt_client_connect(MQTT_CLIENT_HANDLE handle, XIO_HANDLE xioHandle, MQTT_CL
         mqtt_client->keepAliveInterval = mqttOptions->keepAliveInterval;
         mqtt_client->maxPingRespTime = (DEFAULT_MAX_PING_RESPONSE_TIME < mqttOptions->keepAliveInterval/2) ? DEFAULT_MAX_PING_RESPONSE_TIME : mqttOptions->keepAliveInterval/2;
 
-        if (cloneMqttOptions(mqtt_client, mqttOptions) != 0)
+        if (clone_mqtt_options(mqtt_client, mqttOptions) != 0)
         {
             LogError("Error: Clone Mqtt Options failed");
             result = MU_FAILURE;
         }
-        /*Codes_SRS_MQTT_CLIENT_07_008: [mqtt_client_connect shall open the XIO_HANDLE by calling into the xio_open interface.]*/
-        else if (xio_open(xioHandle, onOpenComplete, mqtt_client, codec_v3_get_recv_func(), mqtt_client->codec_handle, onIoError, mqtt_client) != 0)
+        else if (xio_open(xioHandle, on_open_complete, mqtt_client, codec_v3_get_recv_func(), mqtt_client->codec_handle, on_io_error, mqtt_client) != 0)
         {
-            /*Codes_SRS_MQTT_CLIENT_07_007: [If any failure is encountered then mqtt_client_connect shall return a non-zero value.]*/
             LogError("Error: io_open failed");
             result = MU_FAILURE;
             mqtt_client->xioHandle = NULL;
@@ -1141,17 +1121,14 @@ int mqtt_client_publish(MQTT_CLIENT_HANDLE handle, MQTT_MESSAGE_HANDLE msgHandle
     MQTT_CLIENT* mqtt_client = (MQTT_CLIENT*)handle;
     if (mqtt_client == NULL || msgHandle == NULL)
     {
-        /*Codes_SRS_MQTT_CLIENT_07_019: [If one of the parameters handle or msgHandle is NULL then mqtt_client_publish shall return a non-zero value.]*/
         LogError("Invalid parameter specified mqtt_client: %p, msgHandle: %p", mqtt_client, msgHandle);
         result = MU_FAILURE;
     }
     else
     {
-        /*Codes_SRS_MQTT_CLIENT_07_021: [mqtt_client_publish shall get the message information from the MQTT_MESSAGE_HANDLE.]*/
         const APP_PAYLOAD* payload = mqttmessage_getApplicationMsg(msgHandle);
         if (payload == NULL)
         {
-            /*Codes_SRS_MQTT_CLIENT_07_020: [If any failure is encountered then mqtt_client_unsubscribe shall return a non-zero value.]*/
             LogError("Error: mqttmessage_getApplicationMsg failed");
             result = MU_FAILURE;
         }
@@ -1166,7 +1143,6 @@ int mqtt_client_publish(MQTT_CLIENT_HANDLE handle, MQTT_MESSAGE_HANDLE msgHandle
             BUFFER_HANDLE publishPacket = codec_v3_publish(mqtt_client->codec_handle, qos, isDuplicate, isRetained, packetId, topicName, payload->message, payload->length);
             if (publishPacket == NULL)
             {
-                /*Codes_SRS_MQTT_CLIENT_07_020: [If any failure is encountered then mqtt_client_unsubscribe shall return a non-zero value.]*/
                 LogError("Error: mqtt_codec_publish failed");
                 result = MU_FAILURE;
             }
@@ -1174,11 +1150,9 @@ int mqtt_client_publish(MQTT_CLIENT_HANDLE handle, MQTT_MESSAGE_HANDLE msgHandle
             {
                 mqtt_client->packetState = PUBLISH_TYPE;
 
-                /*Codes_SRS_MQTT_CLIENT_07_022: [On success mqtt_client_publish shall send the MQTT SUBCRIBE packet to the endpoint.]*/
                 size_t size = BUFFER_length(publishPacket);
-                if (sendPacketItem(mqtt_client, BUFFER_u_char(publishPacket), size) != 0)
+                if (send_packet_msg(mqtt_client, BUFFER_u_char(publishPacket), size) != 0)
                 {
-                    /*Codes_SRS_MQTT_CLIENT_07_020: [If any failure is encountered then mqtt_client_unsubscribe shall return a non-zero value.]*/
                     LogError("Error: mqtt_client_publish send failed");
                     result = MU_FAILURE;
                 }
@@ -1219,7 +1193,7 @@ int mqtt_client_subscribe(MQTT_CLIENT_HANDLE handle, uint16_t packetId, SUBSCRIB
 
             size_t size = BUFFER_length(subPacket);
             /*Codes_SRS_MQTT_CLIENT_07_015: [On success mqtt_client_subscribe shall send the MQTT SUBCRIBE packet to the endpoint.]*/
-            if (sendPacketItem(mqtt_client, BUFFER_u_char(subPacket), size) != 0)
+            if (send_packet_msg(mqtt_client, BUFFER_u_char(subPacket), size) != 0)
             {
                 /*Codes_SRS_MQTT_CLIENT_07_014: [If any failure is encountered then mqtt_client_subscribe shall return a non-zero value.]*/
                 LogError("Error: mqtt_client_subscribe send failed");
@@ -1263,7 +1237,7 @@ int mqtt_client_unsubscribe(MQTT_CLIENT_HANDLE handle, uint16_t packetId, const 
 
             size_t size = BUFFER_length(unsubPacket);
             /*Codes_SRS_MQTT_CLIENT_07_018: [On success mqtt_client_unsubscribe shall send the MQTT SUBCRIBE packet to the endpoint.]*/
-            if (sendPacketItem(mqtt_client, BUFFER_u_char(unsubPacket), size) != 0)
+            if (send_packet_msg(mqtt_client, BUFFER_u_char(unsubPacket), size) != 0)
             {
                 /*Codes_SRS_MQTT_CLIENT_07_017: [If any failure is encountered then mqtt_client_unsubscribe shall return a non-zero value.].]*/
                 LogError("Error: mqtt_client_unsubscribe send failed");
@@ -1314,7 +1288,7 @@ int mqtt_client_disconnect(MQTT_CLIENT_HANDLE handle, ON_MQTT_DISCONNECTED_CALLB
 
                 size_t size = BUFFER_length(disconnectPacket);
                 /*Codes_SRS_MQTT_CLIENT_07_012: [On success mqtt_client_disconnect shall send the MQTT DISCONNECT packet to the endpoint.]*/
-                if (sendPacketItem(mqtt_client, BUFFER_u_char(disconnectPacket), size) != 0)
+                if (send_packet_msg(mqtt_client, BUFFER_u_char(disconnectPacket), size) != 0)
                 {
                     /*Codes_SRS_MQTT_CLIENT_07_011: [If any failure is encountered then mqtt_client_disconnect shall return a non-zero value.]*/
                     LogError("Error: mqtt_client_disconnect send failed");
@@ -1392,7 +1366,7 @@ void mqtt_client_dowork(MQTT_CLIENT_HANDLE handle)
                         if (pingPacket != NULL)
                         {
                             size_t size = BUFFER_length(pingPacket);
-                            (void)sendPacketItem(mqtt_client, BUFFER_u_char(pingPacket), size);
+                            (void)send_packet_msg(mqtt_client, BUFFER_u_char(pingPacket), size);
                             BUFFER_delete(pingPacket);
                             (void)tickcounter_get_current_ms(mqtt_client->packetTickCntr, &mqtt_client->timeSincePing);
 

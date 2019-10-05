@@ -40,9 +40,6 @@ MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v3_unsubscribe, MQTT_CODEC_V3_HANDLE, h
 MOCKABLE_FUNCTION(, void, codec_v3_reset, MQTT_CODEC_V3_HANDLE, handle);
 
 MOCKABLE_FUNCTION(, int, codec_v3_set_trace, MQTT_CODEC_V3_HANDLE, handle, TRACE_LOG_CALLBACK, trace_func, void*, trace_ctx);
-//MOCKABLE_FUNCTION(, int, codec_v3_bytes_recv, MQTT_CODEC_V3_HANDLE, handle, const unsigned char*, buffer, size_t, size);
-MOCKABLE_FUNCTION(, void, mqtt_codec_reset, MQTT_CODEC_V3_HANDLE, handle);
-
 MOCKABLE_FUNCTION(, ON_BYTES_RECEIVED, codec_v3_get_recv_func);
 
 #ifdef __cplusplus

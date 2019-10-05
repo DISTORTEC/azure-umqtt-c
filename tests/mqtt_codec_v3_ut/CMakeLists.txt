@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 2.8.11)
 
-set(theseTestsName mqtt_codec_ut)
+set(theseTestsName mqtt_codec_v3_ut)
 
 set(${theseTestsName}_test_files
 ${theseTestsName}.c

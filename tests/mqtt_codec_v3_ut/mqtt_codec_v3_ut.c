@@ -15,16 +15,17 @@
 #include "testrunnerswitcher.h"
 #include "umock_c/umock_c.h"
 #include "umock_c/umock_c_negative_tests.h"
+#include "umock_c/umocktypes_stdint.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void* my_gballoc_malloc(size_t size)
+    static void* my_gballoc_malloc(size_t size)
     {
         return malloc(size);
     }
 
-    void my_gballoc_free(void* ptr)
+    static void my_gballoc_free(void* ptr)
     {
         free(ptr);
     }
@@ -83,6 +84,7 @@ static const STRING_HANDLE TEST_TRACE_STRING_HANDLE = (STRING_HANDLE)0x1124;
 #define TEST_LIST_ITEM_HANDLE   0x1236
 #define FIXED_HEADER_SIZE       2
 #define OVER_MAX_SEND_SIZE      0xFFFFFF8F
+#define MQTT_KEEP_ALIVE         20
 
 typedef struct TEST_COMPLETE_DATA_INSTANCE_TAG
 {
@@ -126,7 +128,7 @@ MU_DEFINE_ENUM_STRINGS_2(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES);
 TEST_DEFINE_ENUM_2_TYPE(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES);
 IMPLEMENT_UMOCK_C_ENUM_2_TYPE(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES);
 
-static void SetupMqttLibOptions(MQTT_CLIENT_OPTIONS* options, const char* clientId,
+static void setup_mqtt_options(MQTT_CLIENT_OPTIONS* options, const char* clientId,
     const char* willMsg,
     const char* willTopic,
     const char* username,
@@ -152,6 +154,7 @@ extern "C" {
 #endif
 
 extern BUFFER_HANDLE real_BUFFER_new(void);
+extern BUFFER_HANDLE real_BUFFER_create(const unsigned char* source, size_t size);
 extern int real_BUFFER_build(BUFFER_HANDLE handle, const unsigned char* source, size_t size);
 extern int real_BUFFER_enlarge(BUFFER_HANDLE handle, size_t enlargeSize);
 extern int real_BUFFER_pre_build(BUFFER_HANDLE handle, size_t size);
@@ -163,6 +166,17 @@ extern size_t real_BUFFER_length(BUFFER_HANDLE handle);
 #ifdef __cplusplus
 }
 #endif
+
+BUFFER_HANDLE my_construct_connect_var_header(TRACE_LOG_CALLBACK trace_func, void* trace_ctx, const MQTT_CLIENT_OPTIONS* mqtt_options, uint8_t protocol_level)
+{
+    (void)trace_func;
+    (void)trace_ctx;
+    (void)mqtt_options;
+    (void)protocol_level;
+    const unsigned char CONNECT_HEADER[] = { 0x10, 0x36, 0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0x26, 0x00, 0x14 };
+    size_t len = sizeof(CONNECT_HEADER)/sizeof(CONNECT_HEADER[0]);
+    return real_BUFFER_create(CONNECT_HEADER, len);
+}
 
 TEST_MUTEX_HANDLE test_serialize_mutex;
 
@@ -182,8 +196,14 @@ TEST_SUITE_INITIALIZE(suite_init)
 
     umock_c_init(on_umock_c_error);
 
+    int result = umocktypes_stdint_register_types();
+    ASSERT_ARE_EQUAL(int, 0, result);
+
     REGISTER_UMOCK_ALIAS_TYPE(BUFFER_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(STRING_HANDLE, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(TRACE_LOG_CALLBACK, void*);
+
+    REGISTER_TYPE(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE);
 
     REGISTER_GLOBAL_MOCK_HOOK(gballoc_malloc, my_gballoc_malloc);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(gballoc_malloc, NULL);
@@ -207,6 +227,9 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_delete, real_BUFFER_delete);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_u_char, real_BUFFER_u_char);
     REGISTER_GLOBAL_MOCK_HOOK(BUFFER_length, real_BUFFER_length);
+
+    REGISTER_GLOBAL_MOCK_HOOK(construct_connect_var_header, my_construct_connect_var_header);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(construct_connect_var_header, NULL);
 }
 
 TEST_SUITE_CLEANUP(suite_cleanup)
@@ -235,7 +258,7 @@ TEST_FUNCTION_CLEANUP(method_cleanup)
 
 static void setup_codec_connect_mocks(void)
 {
-    EXPECTED_CALL(BUFFER_new());
+    /*EXPECTED_CALL(BUFFER_new());
     EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
     EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
@@ -247,8 +270,10 @@ static void setup_codec_connect_mocks(void)
     EXPECTED_CALL(BUFFER_u_char(IGNORED_PTR_ARG)).CallCannotFail();
     EXPECTED_CALL(BUFFER_prepend(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
-    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
-
+    EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();*/
+    STRICT_EXPECTED_CALL(construct_connect_var_header(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG)).CallCannotFail();
+    STRICT_EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
 }
 
 static void PrintLogFunction(unsigned int options, char* format, ...)
@@ -277,85 +302,121 @@ static void TestOnCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, in
     }
 }
 
-#if 0
-/* Tests_SRS_MQTT_CODEC_07_002: [On success mqtt_codec_create shall return a MQTTCODEC_HANDLE value.] */
-TEST_FUNCTION(mqtt_codec_create_succeed)
+TEST_FUNCTION(codec_v3_create_succeed)
 {
     // arrange
-    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
 
     // act
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, NULL);
+    MQTT_CODEC_V3_HANDLE handle = codec_v3_create(TestOnCompleteCallback, NULL);
 
     // assert
     ASSERT_IS_NOT_NULL(handle);
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
-/* Tests_SRS_MQTT_CODEC_07_004: [mqtt_codec_destroy shall deallocate all memory that has been allocated by this object.] */
-TEST_FUNCTION(mqtt_codec_destroy_succeed)
+TEST_FUNCTION(codec_v3_create_fail)
 {
     // arrange
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, NULL);
-    umock_c_reset_all_calls();
-
-    EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
-    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG)).SetReturn(NULL);
 
     // act
-    mqtt_codec_destroy(handle);
+    MQTT_CODEC_V3_HANDLE handle = codec_v3_create(TestOnCompleteCallback, NULL);
+
+    // assert
+    ASSERT_IS_NULL(handle);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    codec_v3_destroy(handle);
+}
+
+TEST_FUNCTION(codec_v3_destroy_succeed)
+{
+    // arrange
+    MQTT_CODEC_V3_HANDLE handle = codec_v3_create(TestOnCompleteCallback, NULL);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    // act
+    codec_v3_destroy(handle);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 }
 
-/* Tests_SRS_MQTT_CODEC_07_003: [If the handle parameter is NULL then mqtt_codec_destroy shall do nothing.] */
-TEST_FUNCTION(mqtt_codec_destroy_handle_NULL_fail)
+TEST_FUNCTION(codec_v3_destroy_handle_NULL_fail)
 {
     // arrange
 
     // act
-    mqtt_codec_destroy(NULL);
+    codec_v3_destroy(NULL);
 
     // assert
 }
 
-/* Tests_SRS_MQTT_CODEC_07_008: [If the parameters mqttOptions is NULL then mqtt_codec_connect shall return a null value.] */
-TEST_FUNCTION(mqtt_codec_connect_MQTTCLIENT_OPTIONS_NULL_fail)
+TEST_FUNCTION(codec_v3_connect_MQTTCLIENT_OPTIONS_NULL_fail)
 {
     // arrange
+    MQTT_CODEC_V3_HANDLE handle = codec_v3_create(TestOnCompleteCallback, NULL);
+    umock_c_reset_all_calls();
 
     // act
-    BUFFER_HANDLE handle = mqtt_codec_connect(NULL, NULL);
+    BUFFER_HANDLE buffer = codec_v3_connect(handle, NULL);
 
     // assert
-    ASSERT_IS_NULL(handle);
+    ASSERT_IS_NULL(buffer);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    codec_v3_destroy(handle);
 }
 
-TEST_FUNCTION(mqtt_codec_connect_WillMsg_zero_WillTopic_nonzero_fail)
+TEST_FUNCTION(codec_v3_connect_handle_NULL_fail)
 {
     // arrange
-    MQTT_CLIENT_OPTIONS mqttOptions = { 0 };
-    SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, TEST_WILL_MSG, NULL, "testuser", "testpassword", 20, false, true, DELIVER_AT_MOST_ONCE);
-
-    STRICT_EXPECTED_CALL(BUFFER_new());
-    EXPECTED_CALL(BUFFER_enlarge(IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(MU_FAILURE);
-    EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
+    MQTT_CLIENT_OPTIONS mqtt_options = { 0 };
+    setup_mqtt_options(&mqtt_options, TEST_CLIENT_ID, TEST_WILL_MSG, NULL, "testuser", "testpassword", MQTT_KEEP_ALIVE, false, true, DELIVER_AT_MOST_ONCE);
 
     // act
-    BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
+    BUFFER_HANDLE buffer = codec_v3_connect(NULL, &mqtt_options);
 
     // assert
-    ASSERT_IS_NULL(handle);
+    ASSERT_IS_NULL(buffer);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 }
 
-TEST_FUNCTION(mqtt_codec_connect_second_succeeds)
+TEST_FUNCTION(codec_v3_connect_WillMsg_zero_WillTopic_nonzero_fail)
 {
     // arrange
-    MQTT_CLIENT_OPTIONS mqttOptions = { 0 };
-    SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, TEST_WILL_MSG, TEST_WILL_TOPIC, NULL, NULL, 20, true, true, DELIVER_AT_MOST_ONCE);
+    MQTT_CODEC_V3_HANDLE handle = codec_v3_create(TestOnCompleteCallback, NULL);
+    umock_c_reset_all_calls();
+
+    MQTT_CLIENT_OPTIONS mqtt_options = { 0 };
+    setup_mqtt_options(&mqtt_options, TEST_CLIENT_ID, TEST_WILL_MSG, NULL, "testuser", "testpassword", MQTT_KEEP_ALIVE, false, true, DELIVER_AT_MOST_ONCE);
+
+    setup_codec_connect_mocks();
+
+    // act
+    BUFFER_HANDLE buffer = codec_v3_connect(handle, &mqtt_options);
+
+    // assert
+    ASSERT_IS_NULL(buffer);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    codec_v3_destroy(handle);
+}
+
+TEST_FUNCTION(codec_v3_connect_second_succeeds)
+{
+    // arrange
+    MQTT_CODEC_V3_HANDLE handle = codec_v3_create(TestOnCompleteCallback, NULL);
+    umock_c_reset_all_calls();
+
+    MQTT_CLIENT_OPTIONS mqtt_options = { 0 };
+    setup_mqtt_options(&mqtt_options, TEST_CLIENT_ID, TEST_WILL_MSG, TEST_WILL_TOPIC, NULL, NULL, MQTT_KEEP_ALIVE, true, true, DELIVER_AT_MOST_ONCE);
 
     const unsigned char CONNECT_VALUE[] = { 0x10, 0x36, 0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0x26, 0x00, 0x14, 0x00, 0x14, 0x73, 0x69, \
         0x6e, 0x67, 0x6c, 0x65, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64, 0x65, 0x64, 0x5f, 0x74, 0x65, 0x73, 0x74, 0x00, 0x0a, 0x57, 0x69, \
@@ -364,25 +425,28 @@ TEST_FUNCTION(mqtt_codec_connect_second_succeeds)
     setup_codec_connect_mocks();
 
     // act
-    BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
+    BUFFER_HANDLE buffer = codec_v3_connect(handle, &mqtt_options);
 
-    unsigned char* data = real_BUFFER_u_char(handle);
-    size_t length = BUFFER_length(handle);
+    unsigned char* data = real_BUFFER_u_char(buffer);
+    size_t length = BUFFER_length(buffer);
 
     // assert
-    ASSERT_IS_NOT_NULL(handle);
+    ASSERT_IS_NOT_NULL(buffer);
     ASSERT_ARE_EQUAL(int, 0, memcmp(data, CONNECT_VALUE, length));
 
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    real_BUFFER_delete(handle);
+    real_BUFFER_delete(buffer);
+
+    codec_v3_destroy(handle);
 }
 
-/* Tests_SRS_MQTT_CODEC_07_009: [mqtt_codec_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
-TEST_FUNCTION(mqtt_codec_connect_succeeds)
+#if 0
+/* Tests_SRS_MQTT_CODEC_07_009: [codec_v3_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
+TEST_FUNCTION(codec_v3_connect_succeeds)
 {
     // arrange
-    MQTT_CLIENT_OPTIONS mqttOptions = { 0 };
-    SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, NULL, NULL, "testuser", "testpassword", 20, false, true, DELIVER_AT_MOST_ONCE);
+    MQTT_CLIENT_OPTIONS mqtt_options = { 0 };
+    setup_mqtt_options(&mqtt_options, TEST_CLIENT_ID, NULL, NULL, "testuser", "testpassword", MQTT_KEEP_ALIVE, false, true, DELIVER_AT_MOST_ONCE);
 
     const unsigned char CONNECT_VALUE[] = { 0x10, 0x38, 0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0xc2, 0x00, 0x14, 0x00, 0x14, 0x73, 0x69, \
         0x6e, 0x67, 0x6c, 0x65, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64, 0x65, 0x64, 0x5f, 0x74, 0x65, 0x73, 0x74, 0x00, 0x08, 0x74, \
@@ -391,25 +455,25 @@ TEST_FUNCTION(mqtt_codec_connect_succeeds)
     setup_codec_connect_mocks();
 
     // act
-    BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
+    BUFFER_HANDLE buffer = codec_v3_connect(&mqtt_options, NULL);
 
-    unsigned char* data = real_BUFFER_u_char(handle);
-    size_t length = BUFFER_length(handle);
+    unsigned char* data = real_BUFFER_u_char(buffer);
+    size_t length = BUFFER_length(buffer);
 
     // assert
-    ASSERT_IS_NOT_NULL(handle);
+    ASSERT_IS_NOT_NULL(buffer);
     ASSERT_ARE_EQUAL(int, 0, memcmp(data, CONNECT_VALUE, length));
 
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    real_BUFFER_delete(handle);
+    real_BUFFER_delete(buffer);
 }
 
-/* Tests_SRS_MQTT_CODEC_07_010: [If any error is encountered then mqtt_codec_connect shall return NULL.] */
-TEST_FUNCTION(mqtt_codec_connect_fail)
+/* Tests_SRS_MQTT_CODEC_07_010: [If any error is encountered then codec_v3_connect shall return NULL.] */
+TEST_FUNCTION(codec_v3_connect_fail)
 {
     // arrange
-    MQTT_CLIENT_OPTIONS mqttOptions = { 0 };
-    SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, NULL, NULL, "testuser", "testpassword", 20, false, true, DELIVER_AT_MOST_ONCE);
+    MQTT_CLIENT_OPTIONS mqtt_options = { 0 };
+    setup_mqtt_options(&mqtt_options, TEST_CLIENT_ID, NULL, NULL, "testuser", "testpassword", MQTT_KEEP_ALIVE, false, true, DELIVER_AT_MOST_ONCE);
 
     int negativeTestsInitResult = umock_c_negative_tests_init();
     ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
@@ -429,22 +493,22 @@ TEST_FUNCTION(mqtt_codec_connect_fail)
             umock_c_negative_tests_fail_call(index);
 
             // act
-            BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
+            BUFFER_HANDLE buffer = codec_v3_connect(&mqtt_options, NULL);
 
             // assert
-            ASSERT_IS_NULL(handle);
+            ASSERT_IS_NULL(buffer);
         }
     }
     //cleanup
     umock_c_negative_tests_deinit();
 }
 
-/* Tests_SRS_MQTT_CODEC_07_009: [mqtt_codec_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
-TEST_FUNCTION(mqtt_codec_connect_no_password_succeeds)
+/* Tests_SRS_MQTT_CODEC_07_009: [codec_v3_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
+TEST_FUNCTION(codec_v3_connect_no_password_succeeds)
 {
     // arrange
-    MQTT_CLIENT_OPTIONS mqttOptions ={ 0 };
-    SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, NULL, NULL, "testuser", NULL, 20, false, true, DELIVER_AT_MOST_ONCE);
+    MQTT_CLIENT_OPTIONS mqtt_options ={ 0 };
+    setup_mqtt_options(&mqtt_options, TEST_CLIENT_ID, NULL, NULL, "testuser", NULL, MQTT_KEEP_ALIVE, false, true, DELIVER_AT_MOST_ONCE);
 
     const unsigned char CONNECT_VALUE[] = { 0x10, 0x2a, 0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0x82, 0x00, 0x14, 0x00, 0x14, 0x73, 0x69, \
         0x6e, 0x67, 0x6c, 0x65, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64, 0x65, 0x64, 0x5f, 0x74, 0x65, 0x73, 0x74, 0x00, 0x08, 0x74, \
@@ -465,25 +529,25 @@ TEST_FUNCTION(mqtt_codec_connect_no_password_succeeds)
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
 
     // act
-    BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
+    BUFFER_HANDLE buffer = codec_v3_connect(&mqtt_options, NULL);
 
-    unsigned char* data = real_BUFFER_u_char(handle);
-    size_t length = BUFFER_length(handle);
+    unsigned char* data = real_BUFFER_u_char(buffer);
+    size_t length = BUFFER_length(buffer);
 
     // assert
-    ASSERT_IS_NOT_NULL(handle);
+    ASSERT_IS_NOT_NULL(buffer);
     ASSERT_ARE_EQUAL(int, 0, memcmp(data, CONNECT_VALUE, length));
 
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    real_BUFFER_delete(handle);
+    real_BUFFER_delete(buffer);
 }
 
-/* Tests_SRS_MQTT_CODEC_07_009: [mqtt_codec_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
-TEST_FUNCTION(mqtt_codec_connect_Large_Data_succeeds)
+/* Tests_SRS_MQTT_CODEC_07_009: [codec_v3_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
+TEST_FUNCTION(codec_v3_connect_Large_Data_succeeds)
 {
     // arrange
-    MQTT_CLIENT_OPTIONS mqttOptions = { 0 };
-    SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, NULL, NULL, "testuser.testusersuffix/deviceId", TEST_PASSWORD, 20, false, true, DELIVER_AT_MOST_ONCE);
+    MQTT_CLIENT_OPTIONS mqtt_options = { 0 };
+    setup_mqtt_options(&mqtt_options, TEST_CLIENT_ID, NULL, NULL, "testuser.testusersuffix/deviceId", TEST_PASSWORD, MQTT_KEEP_ALIVE, false, true, DELIVER_AT_MOST_ONCE);
 
     const unsigned char CONNECT_VALUE[] = { 0x10, 0xd1, 0x01, 0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0xc2, 0x00, 0x14, 0x00, 0x14, 0x73, 0x69, 0x6e, 0x67, 0x6c, 0x65, 0x5f, 0x74, \
         0x68, 0x72, 0x65, 0x61, 0x64, 0x65, 0x64, 0x5f, 0x74, 0x65, 0x73, 0x74, 0x00, 0x20, 0x74, 0x65, 0x73, 0x74, 0x75, 0x73, 0x65, 0x72, 0x2e, 0x74, 0x65, 0x73, 0x74, 0x75, 0x73, \
@@ -510,7 +574,7 @@ TEST_FUNCTION(mqtt_codec_connect_Large_Data_succeeds)
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
 
     // act
-    BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, NULL);
+    BUFFER_HANDLE handle = codec_v3_connect(&mqtt_options, NULL);
 
     unsigned char* data = real_BUFFER_u_char(handle);
     size_t length = BUFFER_length(handle);
@@ -1362,7 +1426,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_MQTTCODEC_HANDLE_fails)
 TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_NULL_fails)
 {
     // arrange
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, NULL);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, NULL);
 
     umock_c_reset_all_calls();
 
@@ -1373,7 +1437,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_NULL_fails)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_032: [If the parameters size is zero then mqtt_codec_bytesReceived shall return a non-zero value.] */
@@ -1382,7 +1446,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_Len_0_fails)
     // arrange
     unsigned char CONNACK_RESP[] = { 0x20, 0x2, 0x1, 0x0 };
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, NULL);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, NULL);
 
     umock_c_reset_all_calls();
 
@@ -1393,7 +1457,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_Len_0_fails)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_035: [ If any error is encountered then the packet state will be marked as error and mqtt_codec_bytesReceived shall return a non-zero value. ] */
@@ -1409,7 +1473,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_BUFFER_pre_build_fails)
     TEST_COMPLETE_DATA_INSTANCE testData = { 0 };
     testData.dataHeader = UNSUBACK_RESP + FIXED_HEADER_SIZE;
     testData.Length = length - FIXED_HEADER_SIZE;
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1424,7 +1488,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_BUFFER_pre_build_fails)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_035: [ If any error is encountered then the packet state will be marked as error and mqtt_codec_bytesReceived shall return a non-zero value. ] */
@@ -1440,7 +1504,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_BUFFER_new_fails)
     TEST_COMPLETE_DATA_INSTANCE testData = { 0 };
     testData.dataHeader = UNSUBACK_RESP + FIXED_HEADER_SIZE;
     testData.Length = length - FIXED_HEADER_SIZE;
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1454,7 +1518,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_BUFFER_new_fails)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_033: [mqtt_codec_bytesReceived constructs a sequence of bytes into the corresponding MQTT packets and on success returns zero.] */
@@ -1469,7 +1533,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_connack_succeed)
     testData.dataHeader = CONNACK_RESP + FIXED_HEADER_SIZE;
     testData.Length = 2;
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1495,7 +1559,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_connack_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_too_large_fail)
@@ -1508,7 +1572,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_too_large_fail)
     testData.dataHeader = CONNACK_RESP + FIXED_HEADER_SIZE;
     testData.Length = 2;
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1523,7 +1587,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_buffer_too_large_fail)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 TEST_FUNCTION(mqtt_codec_bytesReceived_after_large_buffer_succeed)
@@ -1538,7 +1602,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_after_large_buffer_succeed)
     testData.dataHeader = CONNACK_RESP + FIXED_HEADER_SIZE;
     testData.Length = 2;
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     int result = mqtt_codec_bytesReceived(handle, LARGE_CONNACK_RESP, large_len);
     ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -1564,7 +1628,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_after_large_buffer_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 TEST_FUNCTION(mqtt_codec_bytesReceived_connack_auth_reject_succeed)
@@ -1577,7 +1641,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_connack_auth_reject_succeed)
     testData.dataHeader = CONNACK_RESP + FIXED_HEADER_SIZE;
     testData.Length = 2;
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1600,7 +1664,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_connack_auth_reject_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_033: [mqtt_codec_bytesReceived constructs a sequence of bytes into the corresponding MQTT packets and on success returns zero.] */
@@ -1621,7 +1685,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_2_succeed)
     testData.dataHeader = PUBLISH_RESULT + FIXED_HEADER_SIZE;
     testData.Length = length - FIXED_HEADER_SIZE;
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1645,7 +1709,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_2_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_033: [mqtt_codec_bytesReceived constructs a sequence of bytes into the corresponding MQTT packets and on success returns zero.] */
@@ -1660,7 +1724,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_puback_succeed)
     testData.dataHeader = PUBACK_RESP + FIXED_HEADER_SIZE;
     testData.Length = length - FIXED_HEADER_SIZE;
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1686,7 +1750,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_puback_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_033: [mqtt_codec_bytesReceived constructs a sequence of bytes into the corresponding MQTT packets and on success returns zero.] */
@@ -1699,7 +1763,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_pingresp_succeed)
 
     TEST_COMPLETE_DATA_INSTANCE testData = { 0 };
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
     EXPECTED_CALL(BUFFER_delete(IGNORED_PTR_ARG));
@@ -1718,7 +1782,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_pingresp_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 TEST_FUNCTION(mqtt_codec_bytesReceived_publish_long_message_succeed)
@@ -1748,7 +1812,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_long_message_succeed)
     testData.dataHeader = PUBLISH + (FIXED_HEADER_SIZE + 1);
     testData.Length = length - (FIXED_HEADER_SIZE + 1);
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1773,7 +1837,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_long_message_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_033: [mqtt_codec_bytesReceived constructs a sequence of bytes into the corresponding MQTT packets and on success returns zero.] */
@@ -1791,7 +1855,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_succeed)
     testData.dataHeader = PUBLISH + FIXED_HEADER_SIZE;
     testData.Length = length - FIXED_HEADER_SIZE;
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1816,7 +1880,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_033: [mqtt_codec_bytesReceived constructs a sequence of bytes into the corresponding MQTT packets and on success returns zero.] */
@@ -1835,7 +1899,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_full_succeed)
     testData.dataHeader = PUBLISH + FIXED_HEADER_SIZE;
     testData.Length = length - FIXED_HEADER_SIZE;
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1856,7 +1920,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_full_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_033: [mqtt_codec_bytesReceived constructs a sequence of bytes into the corresponding MQTT packets and on success returns zero.] */
@@ -1875,7 +1939,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_second_succeed)
     testData.dataHeader = PUBLISH + FIXED_HEADER_SIZE;
     testData.Length = length - FIXED_HEADER_SIZE;
 
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1900,7 +1964,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_publish_second_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_033: [mqtt_codec_bytesReceived constructs a sequence of bytes into the corresponding MQTT packets and on success returns zero.] */
@@ -1917,7 +1981,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_suback_succeed)
     TEST_COMPLETE_DATA_INSTANCE testData = { 0 };
     testData.dataHeader = SUBACK_RESP + FIXED_HEADER_SIZE;
     testData.Length = length - FIXED_HEADER_SIZE;
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1942,7 +2006,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_suback_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
 /* Codes_SRS_MQTT_CODEC_07_033: [mqtt_codec_bytesReceived constructs a sequence of bytes into the corresponding MQTT packets and on success returns zero.] */
@@ -1959,7 +2023,7 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_unsuback_succeed)
     TEST_COMPLETE_DATA_INSTANCE testData = { 0 };
     testData.dataHeader = UNSUBACK_RESP + FIXED_HEADER_SIZE;
     testData.Length = length - FIXED_HEADER_SIZE;
-    MQTTCODEC_HANDLE handle = mqtt_codec_create(TestOnCompleteCallback, &testData);
+    MQTTCODEC_HANDLE handle = codec_v3_create(TestOnCompleteCallback, &testData);
 
     umock_c_reset_all_calls();
 
@@ -1984,15 +2048,15 @@ TEST_FUNCTION(mqtt_codec_bytesReceived_unsuback_succeed)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    mqtt_codec_destroy(handle);
+    codec_v3_destroy(handle);
 }
 
-/* Tests_SRS_MQTT_CODEC_07_009: [mqtt_codec_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
-TEST_FUNCTION(mqtt_codec_connect_trace_succeeds)
+/* Tests_SRS_MQTT_CODEC_07_009: [codec_v3_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
+TEST_FUNCTION(codec_v3_connect_trace_succeeds)
 {
     // arrange
-    MQTT_CLIENT_OPTIONS mqttOptions = { 0 };
-    SetupMqttLibOptions(&mqttOptions, TEST_CLIENT_ID, NULL, NULL, "testuser", "testpassword", 20, false, true, DELIVER_AT_MOST_ONCE);
+    MQTT_CLIENT_OPTIONS mqtt_options = { 0 };
+    setup_mqtt_options(&mqtt_options, TEST_CLIENT_ID, NULL, NULL, "testuser", "testpassword", 20, false, true, DELIVER_AT_MOST_ONCE);
 
     const unsigned char CONNECT_VALUE[] = { 0x10, 0x38, 0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0xc2, 0x00, 0x14, 0x00, 0x14, 0x73, 0x69, \
         0x6e, 0x67, 0x6c, 0x65, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64, 0x65, 0x64, 0x5f, 0x74, 0x65, 0x73, 0x74, 0x00, 0x08, 0x74, \
@@ -2020,7 +2084,7 @@ TEST_FUNCTION(mqtt_codec_connect_trace_succeeds)
     EXPECTED_CALL(BUFFER_length(IGNORED_PTR_ARG));
 
     // act
-    BUFFER_HANDLE handle = mqtt_codec_connect(&mqttOptions, TEST_TRACE_STRING_HANDLE);
+    BUFFER_HANDLE handle = codec_v3_connect(&mqtt_options, TEST_TRACE_STRING_HANDLE);
 
     unsigned char* data = real_BUFFER_u_char(handle);
     size_t length = BUFFER_length(handle);

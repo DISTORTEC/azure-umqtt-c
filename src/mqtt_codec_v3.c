@@ -50,8 +50,8 @@ typedef struct CODEC_V3_INSTANCE_TAG
     size_t bufferOffset;
     int headerFlags;
     BUFFER_HANDLE headerData;
-    ON_PACKET_COMPLETE_CALLBACK packetComplete;
-    void* callContext;
+    ON_PACKET_COMPLETE_CALLBACK on_packet_complete;
+    void* user_ctx;
     uint8_t storeRemainLen[4];
     size_t remainLenIndex;
 
@@ -130,7 +130,7 @@ static int addListItemsToSubscribePacket(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_H
     return result;
 }
 
-static int constructConnectVariableHeader(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_HANDLE ctrlPacket, const MQTT_CLIENT_OPTIONS* mqttOptions)
+static int constructConnectVariableHeader(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_HANDLE ctrlPacket, const MQTT_CLIENT_OPTIONS* mqtt_options)
 {
     int result = 0;
     if (BUFFER_enlarge(ctrlPacket, CONNECT_VARIABLE_HEADER_SIZE) != 0)
@@ -146,12 +146,12 @@ static int constructConnectVariableHeader(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_
         }
         else
         {
-            mqtt_codec->trace_func(mqtt_codec->trace_ctx, " | VER: %d | KEEPALIVE: %d", PROTOCOL_NUMBER, mqttOptions->keepAliveInterval);
+            mqtt_codec->trace_func(mqtt_codec->trace_ctx, " | VER: %d | KEEPALIVE: %d", PROTOCOL_NUMBER, mqtt_options->keepAliveInterval);
         }
         byteutil_writeUTF(&iterator, "MQTT", 4);
         byteutil_writeByte(&iterator, PROTOCOL_NUMBER);
         byteutil_writeByte(&iterator, 0); // Flags will be entered later
-        byteutil_writeInt(&iterator, mqttOptions->keepAliveInterval);
+        byteutil_writeInt(&iterator, mqtt_options->keepAliveInterval);
         result = 0;
     }
     return result;
@@ -310,7 +310,7 @@ static int constructFixedHeader(BUFFER_HANDLE ctrlPacket, CONTROL_PACKET_TYPE pa
     return result;
 }
 
-static int constructConnPayload(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_HANDLE ctrlPacket, const MQTT_CLIENT_OPTIONS* mqttOptions)
+static int construct_conn_payload(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_HANDLE ctrlPacket, const MQTT_CLIENT_OPTIONS* mqtt_options)
 {
     int result = 0;
     size_t clientLen = 0;
@@ -322,30 +322,30 @@ static int constructConnPayload(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_HANDLE ctr
     size_t currLen = 0;
     size_t totalLen = 0;
 
-    if (mqttOptions->clientId != NULL)
+    if (mqtt_options->clientId != NULL)
     {
         spaceLen += 2;
-        clientLen = strlen(mqttOptions->clientId);
+        clientLen = strlen(mqtt_options->clientId);
     }
-    if (mqttOptions->username != NULL)
+    if (mqtt_options->username != NULL)
     {
         spaceLen += 2;
-        usernameLen = strlen(mqttOptions->username);
+        usernameLen = strlen(mqtt_options->username);
     }
-    if (mqttOptions->password != NULL)
+    if (mqtt_options->password != NULL)
     {
         spaceLen += 2;
-        passwordLen = strlen(mqttOptions->password);
+        passwordLen = strlen(mqtt_options->password);
     }
-    if (mqttOptions->willMessage != NULL)
+    if (mqtt_options->willMessage != NULL)
     {
         spaceLen += 2;
-        willMessageLen = strlen(mqttOptions->willMessage);
+        willMessageLen = strlen(mqtt_options->willMessage);
     }
-    if (mqttOptions->willTopic != NULL)
+    if (mqtt_options->willTopic != NULL)
     {
         spaceLen += 2;
-        willTopicLen = strlen(mqttOptions->willTopic);
+        willTopicLen = strlen(mqtt_options->willTopic);
     }
 
     currLen = BUFFER_length(ctrlPacket);
@@ -374,7 +374,7 @@ static int constructConnPayload(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_HANDLE ctr
         uint8_t* iterator = packet;
 
         iterator += currLen;
-        byteutil_writeUTF(&iterator, mqttOptions->clientId, (uint16_t)clientLen);
+        byteutil_writeUTF(&iterator, mqtt_options->clientId, (uint16_t)clientLen);
 
         // TODO: Read on the Will Topic
         if (willMessageLen > USHRT_MAX || willTopicLen > USHRT_MAX || usernameLen > USHRT_MAX || passwordLen > USHRT_MAX)
@@ -383,51 +383,46 @@ static int constructConnPayload(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_HANDLE ctr
         }
         else
         {
-            STRING_HANDLE connect_payload_trace = NULL;
-            if (connect_payload_trace != NULL)
-            {
-                connect_payload_trace = STRING_new();
-            }
             if (willMessageLen > 0 && willTopicLen > 0)
             {
                 if (mqtt_codec->trace_func != NULL)
                 {
-                    mqtt_codec->trace_func(mqtt_codec->trace_ctx, " | WILL_TOPIC: %s", mqttOptions->willTopic);
+                    mqtt_codec->trace_func(mqtt_codec->trace_ctx, " | WILL_TOPIC: %s", mqtt_options->willTopic);
                 }
                 packet[CONN_FLAG_BYTE_OFFSET] |= WILL_FLAG_FLAG;
-                byteutil_writeUTF(&iterator, mqttOptions->willTopic, (uint16_t)willTopicLen);
-                packet[CONN_FLAG_BYTE_OFFSET] |= (mqttOptions->qualityOfServiceValue << 3);
-                if (mqttOptions->messageRetain)
+                byteutil_writeUTF(&iterator, mqtt_options->willTopic, (uint16_t)willTopicLen);
+                packet[CONN_FLAG_BYTE_OFFSET] |= (mqtt_options->qualityOfServiceValue << 3);
+                if (mqtt_options->messageRetain)
                 {
                     packet[CONN_FLAG_BYTE_OFFSET] |= WILL_RETAIN_FLAG;
                 }
-                byteutil_writeUTF(&iterator, mqttOptions->willMessage, (uint16_t)willMessageLen);
+                byteutil_writeUTF(&iterator, mqtt_options->willMessage, (uint16_t)willMessageLen);
             }
             if (usernameLen > 0)
             {
                 packet[CONN_FLAG_BYTE_OFFSET] |= USERNAME_FLAG;
-                byteutil_writeUTF(&iterator, mqttOptions->username, (uint16_t)usernameLen);
+                byteutil_writeUTF(&iterator, mqtt_options->username, (uint16_t)usernameLen);
                 if (mqtt_codec->trace_func != NULL)
                 {
-                    mqtt_codec->trace_func(mqtt_codec->trace_ctx, " | USERNAME: %s", mqttOptions->username);
+                    mqtt_codec->trace_func(mqtt_codec->trace_ctx, " | USERNAME: %s", mqtt_options->username);
                 }
             }
             if (passwordLen > 0)
             {
                 packet[CONN_FLAG_BYTE_OFFSET] |= PASSWORD_FLAG;
-                byteutil_writeUTF(&iterator, mqttOptions->password, (uint16_t)passwordLen);
+                byteutil_writeUTF(&iterator, mqtt_options->password, (uint16_t)passwordLen);
                 if (mqtt_codec->trace_func != NULL)
                 {
                     mqtt_codec->trace_func(mqtt_codec->trace_ctx, " | PWD: XXXX");
                 }
             }
-            if (mqttOptions->useCleanSession)
+            if (mqtt_options->useCleanSession)
             {
                 packet[CONN_FLAG_BYTE_OFFSET] |= CLEAN_SESSION_FLAG;
             }
             if (mqtt_codec->trace_func != NULL)
             {
-                mqtt_codec->trace_func(mqtt_codec->trace_ctx, " | CLEAN: %s | %lu", mqttOptions->useCleanSession ? "1" : "0", packet[CONN_FLAG_BYTE_OFFSET]);
+                mqtt_codec->trace_func(mqtt_codec->trace_ctx, " | CLEAN: %s | %lu", mqtt_options->useCleanSession ? "1" : "0", packet[CONN_FLAG_BYTE_OFFSET]);
             }
             result = 0;
         }
@@ -435,11 +430,11 @@ static int constructConnPayload(CODEC_V3_INSTANCE* mqtt_codec, BUFFER_HANDLE ctr
     return result;
 }
 
-static int prepareheaderDataInfo(CODEC_V3_INSTANCE* codecData, uint8_t remainLen)
+static int prepareheaderDataInfo(CODEC_V3_INSTANCE* codec_data, uint8_t remainLen)
 {
     int result;
     result = 0;
-    codecData->storeRemainLen[codecData->remainLenIndex++] = remainLen;
+    codec_data->storeRemainLen[codec_data->remainLenIndex++] = remainLen;
     if (remainLen <= 0x7f)
     {
         int multiplier = 1;
@@ -448,7 +443,7 @@ static int prepareheaderDataInfo(CODEC_V3_INSTANCE* codecData, uint8_t remainLen
         uint8_t encodeByte = 0;
         do
         {
-            encodeByte = codecData->storeRemainLen[index++];
+            encodeByte = codec_data->storeRemainLen[index++];
             totalLen += (encodeByte & 127) * multiplier;
             multiplier *= NEXT_128_CHUNK;
 
@@ -466,17 +461,17 @@ static int prepareheaderDataInfo(CODEC_V3_INSTANCE* codecData, uint8_t remainLen
         }
         else
         {
-            codecData->codecState = CODEC_STATE_VAR_HEADER;
+            codec_data->codecState = CODEC_STATE_VAR_HEADER;
 
             // Reset remainLen Index
-            codecData->remainLenIndex = 0;
-            memset(codecData->storeRemainLen, 0, 4 * sizeof(uint8_t));
+            codec_data->remainLenIndex = 0;
+            memset(codec_data->storeRemainLen, 0, 4 * sizeof(uint8_t));
 
             if (totalLen > 0)
             {
-                codecData->bufferOffset = 0;
-                codecData->headerData = BUFFER_new();
-                if (codecData->headerData == NULL)
+                codec_data->bufferOffset = 0;
+                codec_data->headerData = BUFFER_new();
+                if (codec_data->headerData == NULL)
                 {
                     /* Codes_SRS_MQTT_CODEC_07_035: [ If any error is encountered then the packet state will be marked as error and mqtt_codec_bytesReceived shall return a non-zero value. ] */
                     LogError("Failed BUFFER_new");
@@ -484,7 +479,7 @@ static int prepareheaderDataInfo(CODEC_V3_INSTANCE* codecData, uint8_t remainLen
                 }
                 else
                 {
-                    if (BUFFER_pre_build(codecData->headerData, totalLen) != 0)
+                    if (BUFFER_pre_build(codec_data->headerData, totalLen) != 0)
                     {
                         /* Codes_SRS_MQTT_CODEC_07_035: [ If any error is encountered then the packet state will be marked as error and mqtt_codec_bytesReceived shall return a non-zero value. ] */
                         LogError("Failed BUFFER_pre_build");
@@ -498,50 +493,49 @@ static int prepareheaderDataInfo(CODEC_V3_INSTANCE* codecData, uint8_t remainLen
     return result;
 }
 
-static void completePacketData(CODEC_V3_INSTANCE* codecData)
+static void complete_packet_data(CODEC_V3_INSTANCE* codec_data)
 {
-    if (codecData->packetComplete != NULL)
+    if (codec_data->on_packet_complete != NULL)
     {
-        codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, codecData->headerData);
+        codec_data->on_packet_complete(codec_data->user_ctx, codec_data->currPacket, codec_data->headerFlags, codec_data->headerData);
     }
 
     // Clean up data
-    codecData->currPacket = UNKNOWN_TYPE;
-    codecData->codecState = CODEC_STATE_FIXED_HEADER;
-    codecData->headerFlags = 0;
-    BUFFER_delete(codecData->headerData);
-    codecData->headerData = NULL;
+    codec_data->currPacket = UNKNOWN_TYPE;
+    codec_data->codecState = CODEC_STATE_FIXED_HEADER;
+    codec_data->headerFlags = 0;
+    BUFFER_delete(codec_data->headerData);
+    codec_data->headerData = NULL;
 }
 
-void mqtt_codec_reset(MQTT_CODEC_V3_HANDLE handle)
+void mqtt_codec_reset(CODEC_V3_INSTANCE* codec_data)
 {
-    if (handle != NULL)
+    if (codec_data != NULL)
     {
         // Clear the code instance data
-        handle->currPacket = UNKNOWN_TYPE;
-        handle->codecState = CODEC_STATE_FIXED_HEADER;
-        handle->headerFlags = 0;
-        handle->bufferOffset = 0;
-        handle->headerData = NULL;
-        memset(handle->storeRemainLen, 0, 4 * sizeof(uint8_t));
-        handle->remainLenIndex = 0;
+        codec_data->currPacket = UNKNOWN_TYPE;
+        codec_data->codecState = CODEC_STATE_FIXED_HEADER;
+        memset(codec_data->storeRemainLen, 0, 4 * sizeof(uint8_t));
+        memset(codec_data, 0, sizeof(CODEC_V3_INSTANCE));
     }
 }
 
-MQTT_CODEC_V3_HANDLE codec_v3_create(ON_PACKET_COMPLETE_CALLBACK packetComplete, void* callbackCtx)
+MQTT_CODEC_V3_HANDLE codec_v3_create(ON_PACKET_COMPLETE_CALLBACK on_packet_complete, void* user_ctx)
 {
     CODEC_V3_INSTANCE* result;
-    result = malloc(sizeof(CODEC_V3_INSTANCE));
-    /* Codes_SRS_MQTT_CODEC_07_001: [If a failure is encountered then mqtt_codec_create shall return NULL.] */
-    if (result != NULL)
+
+    if ((result = malloc(sizeof(CODEC_V3_INSTANCE))) == NULL)
     {
-        memset(result, 0, sizeof(CODEC_V3_INSTANCE));
+        LogError("Failure allocating mqtt codec");
+    }
+    else
+    {
         /* Codes_SRS_MQTT_CODEC_07_002: [On success mqtt_codec_create shall return a MQTTCODEC_HANDLE value.] */
         mqtt_codec_reset(result);
-        result->packetComplete = packetComplete;
-        result->callContext = callbackCtx;
+        result->on_packet_complete = on_packet_complete;
+        result->user_ctx = user_ctx;
     }
-    return (MQTT_CODEC_V3_HANDLE)result;
+    return result;
 }
 
 void codec_v3_destroy(MQTT_CODEC_V3_HANDLE handle)
@@ -556,30 +550,28 @@ void codec_v3_destroy(MQTT_CODEC_V3_HANDLE handle)
     }
 }
 
-BUFFER_HANDLE codec_v3_connect(MQTT_CODEC_V3_HANDLE handle, const MQTT_CLIENT_OPTIONS* mqttOptions)
+BUFFER_HANDLE codec_v3_connect(MQTT_CODEC_V3_HANDLE handle, const MQTT_CLIENT_OPTIONS* mqtt_options)
 {
     BUFFER_HANDLE result;
-    /* Codes_SRS_MQTT_CODEC_07_008: [If the parameters mqttOptions is NULL then mqtt_codec_connect shall return a null value.] */
-    if (mqttOptions == NULL || handle == NULL)
+    if (mqtt_options == NULL || handle == NULL)
     {
-        LogError("Invalid argument specified: mqttOptions: %p, handle: %p", mqttOptions, handle);
+        LogError("Invalid argument specified: mqtt_options: %p, handle: %p", mqtt_options, handle);
         result = NULL;
     }
     else
     {
         CODEC_V3_INSTANCE* mqtt_codec = (CODEC_V3_INSTANCE*)handle;
-        /* Codes_SRS_MQTT_CODEC_07_009: [mqtt_codec_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
         if (mqtt_codec->trace_func != NULL)
         {
             mqtt_codec->trace_func(mqtt_codec->trace_ctx, "CONNECT");
         }
 
         // Construct the variable header for the connect packet
-        if ((result = construct_connect_var_header(mqtt_codec->trace_func, mqtt_codec->trace_ctx, mqttOptions, PROTOCOL_NUMBER)) == NULL)
+        if ((result = construct_connect_var_header(mqtt_codec->trace_func, mqtt_codec->trace_ctx, mqtt_options, PROTOCOL_NUMBER)) == NULL)
         {
             LogError("Failure creating variable header");
         }
-        else if (constructConnPayload(mqtt_codec, result, mqttOptions) != 0)
+        else if (construct_conn_payload(mqtt_codec, result, mqtt_options) != 0)
         {
             /* Codes_SRS_MQTT_CODEC_07_010: [If any error is encountered then mqtt_codec_connect shall return NULL.] */
             LogError("Failure constructing payload");
@@ -899,7 +891,7 @@ void codec_v3_bytes_recv(void* context, const unsigned char* buffer, size_t size
                         else if (codec_data->currPacket == PINGRESP_TYPE)
                         {
                             /* Codes_SRS_MQTT_CODEC_07_034: [Upon a constructing a complete MQTT packet mqtt_codec_bytesReceived shall call the ON_PACKET_COMPLETE_CALLBACK function.] */
-                            completePacketData(codec_data);
+                            complete_packet_data(codec_data);
                         }
                     }
                 }
@@ -927,7 +919,7 @@ void codec_v3_bytes_recv(void* context, const unsigned char* buffer, size_t size
                             if (codec_data->bufferOffset >= totalLen)
                             {
                                 /* Codes_SRS_MQTT_CODEC_07_034: [Upon a constructing a complete MQTT packet mqtt_codec_bytesReceived shall call the ON_PACKET_COMPLETE_CALLBACK function.] */
-                                completePacketData(codec_data);
+                                complete_packet_data(codec_data);
                             }
                         }
                     }
