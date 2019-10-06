@@ -1,7 +1,7 @@
 #Copyright (c) Microsoft. All rights reserved.
 #Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 3.0.5)
 
 if (TARGET umqtt)
     RETURN()
@@ -104,10 +104,10 @@ set(source_c_files
 
 #these are the C headers
 set(source_h_files
+    ./inc/azure_umqtt_c/internal/mqtt_codec_v3.h
+    ./inc/azure_umqtt_c/internal/mqtt_codec_v5.h
     ./inc/azure_umqtt_c/mqtt_client.h
     ./inc/azure_umqtt_c/mqtt_client_v5.h
-    ./inc/azure_umqtt_c/mqtt_codec_v3.h
-    ./inc/azure_umqtt_c/mqtt_codec_v5.h
     ./inc/azure_umqtt_c/mqttconst.h
     ./inc/azure_umqtt_c/mqtt_message.h
     ./inc/azure_umqtt_c/mqtt_properties.h

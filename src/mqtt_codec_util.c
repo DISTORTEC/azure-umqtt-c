@@ -5,36 +5,12 @@
 #include "azure_c_shared_utility/gballoc.h"
 #include "azure_c_shared_utility/xlogging.h"
 
-#include "azure_umqtt_c/mqtt_codec_util.h"
+#include "azure_umqtt_c/internal/mqtt_codec_util.h"
 
 #include <inttypes.h>
 
 #define PACKET_TYPE_BYTE(p)                 (CONTROL_PACKET_TYPE)((uint8_t)(((uint8_t)(p)) & 0xf0))
 #define FLAG_VALUE_BYTE(p)                  ((uint8_t)(((uint8_t)(p)) & 0xf))
-#define CONNECT_VAR_HEADER_SIZE             10
-
-BUFFER_HANDLE construct_connect_var_header(TRACE_LOG_CALLBACK trace_func, void* trace_ctx, const MQTT_CLIENT_OPTIONS* mqtt_options, uint8_t protocol_level)
-{
-    BUFFER_HANDLE result;
-    if ((result = BUFFER_create_with_size(CONNECT_VAR_HEADER_SIZE)) == NULL)
-    {
-        LogError("Failure creating buffer");
-    }
-    else
-    {
-        if (trace_func != NULL)
-        {
-            trace_func(trace_ctx, " | VER: %d | KEEPALIVE: %d", protocol_level, mqtt_options->keepAliveInterval);
-        }
-
-        uint8_t* iterator = BUFFER_u_char(result);
-        byteutil_writeUTF(&iterator, "MQTT", 4);
-        byteutil_writeByte(&iterator, protocol_level);
-        byteutil_writeByte(&iterator, 0); // Flags will be entered later
-        byteutil_writeInt(&iterator, mqtt_options->keepAliveInterval);
-    }
-    return result;
-}
 
 int encode_variable_byte_integer(uint8_t stream_bytes[4], size_t* pos, uint32_t* vbi_value)
 {

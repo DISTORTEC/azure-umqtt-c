@@ -18,7 +18,7 @@
 #include "azure_c_shared_utility/buffer_.h"
 
 #include "azure_umqtt_c/mqtt_client_v5.h"
-#include "azure_umqtt_c/mqtt_codec_v5.h"
+#include "azure_umqtt_c/internal/mqtt_codec_v5.h"
 
 #define VARIABLE_HEADER_OFFSET          2
 #define RETAIN_FLAG_MASK                0x1
@@ -33,17 +33,17 @@
 typedef struct MQTT_CLIENT_V5_TAG
 {
     XIO_HANDLE xioHandle;
+    TICK_COUNTER_HANDLE tick_counter;
 
     MQTT_CODEC_V5_HANDLE mqtt_codec_handle;
     char* trace_line;
     size_t trace_alloc;
 
     CONTROL_PACKET_TYPE packetState;
-    TICK_COUNTER_HANDLE packetTickCntr;
     tickcounter_ms_t packetSendTimeMs;
     ON_MQTT_OPERATION_CALLBACK operation_cb;
     ON_MQTT_MESSAGE_RECV_CALLBACK msg_recv_cb;
-    void* ctx;
+    void* op_user_ctx;
     ON_MQTT_V5_ERROR_CALLBACK on_error_cb;
     void* error_cb_ctx;
     ON_MQTT_DISCONNECTED_CALLBACK disconnect_cb;
@@ -194,7 +194,7 @@ static void sendComplete(void* context, IO_SEND_RESULT send_result)
                 /*Codes_SRS_MQTT_CLIENT_07_032: [If the actionResult parameter is of type MQTT_CLIENT_ON_DISCONNECT the the msgInfo value shall be NULL.]*/
                 if (mqtt_client->operation_cb != NULL)
                 {
-                    mqtt_client->operation_cb(mqtt_client, MQTT_CLIENT_ON_DISCONNECT, NULL, mqtt_client->ctx);
+                    //mqtt_client->operation_cb(mqtt_client, MQTT_CLIENT_ON_DISCONNECT, NULL, mqtt_client->ctx);
                 }
                 // close the xio
                 close_connection(mqtt_client);
@@ -370,7 +370,7 @@ static int sendPacketItem(MQTT_CLIENT_V5* mqtt_client, const unsigned char* data
 {
     int result;
 
-    if (tickcounter_get_current_ms(mqtt_client->packetTickCntr, &mqtt_client->packetSendTimeMs) != 0)
+    if (tickcounter_get_current_ms(mqtt_client->tick_counter, &mqtt_client->packetSendTimeMs) != 0)
     {
         LogError("Failure getting current ms tickcounter");
         result = MU_FAILURE;
@@ -658,7 +658,7 @@ static void ProcessPublishMessage(MQTT_CLIENT_V5* mqtt_client, uint8_t* initialP
                     log_incoming_trace(mqtt_client, STRING_c_str(trace_log));
                 }
 #endif
-                mqtt_client->msg_recv_cb(msgHandle, mqtt_client->ctx);
+                mqtt_client->msg_recv_cb(msgHandle, mqtt_client->op_user_ctx);
 
                 BUFFER_HANDLE pubRel = NULL;
                 if (qosValue == DELIVER_EXACTLY_ONCE)
@@ -698,10 +698,10 @@ static void ProcessPublishMessage(MQTT_CLIENT_V5* mqtt_client, uint8_t* initialP
     }
 }
 
-static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData)
+static void recv_complete_callback(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData)
 {
     MQTT_CLIENT_V5* mqtt_client = (MQTT_CLIENT_V5*)context;
-    if (mqtt_client != NULL)
+    /*if (mqtt_client != NULL)
     {
         size_t packetLength = 0;
         uint8_t* iterator = NULL;
@@ -720,7 +720,6 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
             {
                 case CONNACK_TYPE:
                 {
-                    /*Codes_SRS_MQTT_CLIENT_07_028: [If the actionResult parameter is of type CONNECT_ACK then the msgInfo value shall be a CONNECT_ACK structure.]*/
                     CONNECT_ACK connack = { 0 };
                     connack.isSessionPresent = (byteutil_readByte(&iterator) == 0x1) ? true : false;
                     uint8_t rc = byteutil_readByte(&iterator);
@@ -754,7 +753,6 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
                 case PUBREL_TYPE:
                 case PUBCOMP_TYPE:
                 {
-                    /*Codes_SRS_MQTT_CLIENT_07_029: [If the actionResult parameter are of types PUBACK_TYPE, PUBREC_TYPE, PUBREL_TYPE or PUBCOMP_TYPE then the msgInfo value shall be a PUBLISH_ACK structure.]*/
                     MQTT_CLIENT_EVENT_RESULT action = (packet == PUBACK_TYPE) ? MQTT_CLIENT_ON_PUBLISH_ACK :
                         (packet == PUBREC_TYPE) ? MQTT_CLIENT_ON_PUBLISH_RECV :
                         (packet == PUBREL_TYPE) ? MQTT_CLIENT_ON_PUBLISH_REL : MQTT_CLIENT_ON_PUBLISH_COMP;
@@ -802,7 +800,6 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
                 case SUBACK_TYPE:
                 {
 
-                    /*Codes_SRS_MQTT_CLIENT_07_030: [If the actionResult parameter is of type SUBACK_TYPE then the msgInfo value shall be a SUBSCRIBE_ACK structure.]*/
                     SUBSCRIBE_ACK suback = { 0 };
 
                     size_t remainLen = packetLength;
@@ -854,7 +851,6 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
                 }
                 case UNSUBACK_TYPE:
                 {
-                    /*Codes_SRS_MQTT_CLIENT_07_031: [If the actionResult parameter is of type UNSUBACK_TYPE then the msgInfo value shall be a UNSUBSCRIBE_ACK structure.]*/
                     UNSUBSCRIBE_ACK unsuback = { 0 };
                     unsuback.packetId = byteutil_read_uint16(&iterator, packetLength);
 
@@ -887,8 +883,8 @@ static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int 
     }
     else
     {
-        LogError("recvCompleteCallback context failed.");
-    }
+        LogError("recv_complete_callback context failed.");
+    }*/
 }
 
 //#if defined(__GNUC__)
@@ -965,7 +961,7 @@ static void trace_logger(void* context, const char* format, ...)
 static int init_codec_provider_info(MQTT_CLIENT_V5* mqtt_client)
 {
     int result;
-    if ((mqtt_client->mqtt_codec_handle = codec_v5_create(recvCompleteCallback, mqtt_client)) == NULL)
+    if ((mqtt_client->mqtt_codec_handle = codec_v5_create(recv_complete_callback, mqtt_client)) == NULL)
     {
         LogError("Failure creating codec handle");
         result = MU_FAILURE;
@@ -977,19 +973,18 @@ static int init_codec_provider_info(MQTT_CLIENT_V5* mqtt_client)
     return result;
 }
 
-MQTT_CLIENT_V5_HANDLE mqtt_client_v5_create(ON_MQTT_MESSAGE_RECV_CALLBACK msgRecv, ON_MQTT_OPERATION_CALLBACK operation_cb, void* opCallbackCtx, ON_MQTT_V5_ERROR_CALLBACK on_error_cb, void* error_cb_ctx)
+MQTT_CLIENT_V5_HANDLE mqtt_client_v5_create(ON_MQTT_MESSAGE_RECV_CALLBACK msg_recv_cb, ON_MQTT_OPERATION_CALLBACK operation_cb, void* op_user_ctx, ON_MQTT_V5_ERROR_CALLBACK on_error_cb, void* error_cb_ctx)
 {
     MQTT_CLIENT_V5* result;
     /*Codes_SRS_MQTT_CLIENT_07_001: [If the parameters ON_MQTT_MESSAGE_RECV_CALLBACK is NULL then mqttclient_init shall return NULL.]*/
-    if (msgRecv == NULL || operation_cb == NULL)
+    if (msg_recv_cb == NULL || operation_cb == NULL)
     {
-        LogError("Invalid parameter specified msgRecv: %p, operation_cb: %p", msgRecv, operation_cb);
+        LogError("Invalid parameter specified msg_recv_cb: %p, operation_cb: %p", msg_recv_cb, operation_cb);
         result = NULL;
     }
     else
     {
-        result = malloc(sizeof(MQTT_CLIENT_V5));
-        if (result == NULL)
+        if ((result = malloc(sizeof(MQTT_CLIENT_V5))) == NULL)
         {
             /*Codes_SRS_MQTT_CLIENT_07_002: [If any failure is encountered then mqttclient_init shall return NULL.]*/
             LogError("mqtt_client_init failure: Allocation Failure");
@@ -1000,12 +995,12 @@ MQTT_CLIENT_V5_HANDLE mqtt_client_v5_create(ON_MQTT_MESSAGE_RECV_CALLBACK msgRec
             /*Codes_SRS_MQTT_CLIENT_07_003: [mqttclient_init shall allocate MQTTCLIENT_DATA_INSTANCE and return the MQTTCLIENT_HANDLE on success.]*/
             result->packetState = UNKNOWN_TYPE;
             result->operation_cb = operation_cb;
-            result->ctx = opCallbackCtx;
-            result->msg_recv_cb = msgRecv;
+            result->op_user_ctx = op_user_ctx;
+            result->msg_recv_cb = msg_recv_cb;
             result->on_error_cb = on_error_cb;
             result->error_cb_ctx = error_cb_ctx;
             result->maxPingRespTime = DEFAULT_MAX_PING_RESPONSE_TIME;
-            if ((result->packetTickCntr = tickcounter_create()) == NULL)
+            if ((result->tick_counter = tickcounter_create()) == NULL)
             {
                 /*Codes_SRS_MQTT_CLIENT_07_002: [If any failure is encountered then mqttclient_init shall return NULL.]*/
                 LogError("mqtt_client_init failure: tickcounter_create failure");
@@ -1016,7 +1011,7 @@ MQTT_CLIENT_V5_HANDLE mqtt_client_v5_create(ON_MQTT_MESSAGE_RECV_CALLBACK msgRec
             {
                 /*Codes_SRS_MQTT_CLIENT_07_002: [If any failure is encountered then mqttclient_init shall return NULL.]*/
                 LogError("mqtt_client_init failure: mqtt_codec_create failure");
-                tickcounter_destroy(result->packetTickCntr);
+                tickcounter_destroy(result->tick_counter);
                 free(result);
                 result = NULL;
             }
@@ -1031,11 +1026,10 @@ void mqtt_client_v5_destroy(MQTT_CLIENT_V5_HANDLE handle)
     if (handle != NULL)
     {
         /*Codes_SRS_MQTT_CLIENT_07_005: [mqtt_client_deinit shall deallocate all memory allocated in this unit.]*/
-        MQTT_CLIENT_V5* mqtt_client = (MQTT_CLIENT_V5*)handle;
-        tickcounter_destroy(mqtt_client->packetTickCntr);
-        codec_v5_destroy(mqtt_client->mqtt_codec_handle);
-        clear_mqtt_options(mqtt_client);
-        free(mqtt_client);
+        tickcounter_destroy(handle->tick_counter);
+        codec_v5_destroy(handle->mqtt_codec_handle);
+        clear_mqtt_options(handle);
+        free(handle);
     }
 }
 
@@ -1306,7 +1300,7 @@ void mqtt_client_v5_dowork(MQTT_CLIENT_V5_HANDLE handle)
         if (mqtt_client->socketConnected && mqtt_client->clientConnected && mqtt_client->keep_alive_interval > 0)
         {
             tickcounter_ms_t current_ms;
-            if (tickcounter_get_current_ms(mqtt_client->packetTickCntr, &current_ms) != 0)
+            if (tickcounter_get_current_ms(mqtt_client->tick_counter, &current_ms) != 0)
             {
                 LogError("Error: tickcounter_get_current_ms failed");
             }
@@ -1334,7 +1328,7 @@ void mqtt_client_v5_dowork(MQTT_CLIENT_V5_HANDLE handle)
                         size_t size = BUFFER_length(pingPacket);
                         (void)sendPacketItem(mqtt_client, BUFFER_u_char(pingPacket), size);
                         BUFFER_delete(pingPacket);
-                        (void)tickcounter_get_current_ms(mqtt_client->packetTickCntr, &mqtt_client->timeSincePing);
+                        (void)tickcounter_get_current_ms(mqtt_client->tick_counter, &mqtt_client->timeSincePing);
 
                         if (mqtt_client->logTrace)
                         {

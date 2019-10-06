@@ -26,7 +26,6 @@ typedef void(*ON_PACKET_COMPLETE_CALLBACK)(void* context, CONTROL_PACKET_TYPE pa
 typedef void(*TRACE_LOG_CALLBACK)(void* context, const char* log_value, ...);
 
 MOCKABLE_FUNCTION(, int, construct_fixed_header, BUFFER_HANDLE, ctrl_packet, CONTROL_PACKET_TYPE, packet_type, uint8_t, flags);
-MOCKABLE_FUNCTION(, BUFFER_HANDLE, construct_connect_var_header, TRACE_LOG_CALLBACK, trace_func, void*, trace_ctx, const MQTT_CLIENT_OPTIONS*, mqtt_options, uint8_t, protocol_level);
 
 extern int encode_variable_byte_integer(uint8_t stream_bytes[4], size_t* pos, uint32_t* vbi_value);
 

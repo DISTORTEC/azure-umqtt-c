@@ -9,7 +9,7 @@
 #include "umock_c/umock_c_prod.h"
 
 #include "azure_umqtt_c/mqttconst.h"
-#include "azure_umqtt_c/mqtt_codec_util.h"
+#include "azure_umqtt_c/internal/mqtt_codec_util.h"
 #include "azure_umqtt_c/mqtt_properties.h"
 
 #ifdef __cplusplus

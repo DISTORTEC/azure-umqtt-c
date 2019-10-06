@@ -76,6 +76,25 @@ typedef struct MQTT_CLIENT_OPTIONS_TAG
     bool log_trace;
 } MQTT_CLIENT_OPTIONS;
 
+typedef struct MQTT_v5_CLIENT_OPTIONS_TAG
+{
+    char* clientId;
+    char* willTopic;
+    char* willMessage;
+    char* username;
+    char* password;
+    uint16_t keepAliveInterval;
+    bool messageRetain;
+    bool useCleanSession;
+    QOS_VALUE qualityOfServiceValue;
+    bool log_trace;
+
+    uint32_t max_concurent_recv;
+    uint32_t max_packet_size;
+    uint32_t session_expiry_interval;
+
+} MQTT_v5_CLIENT_OPTIONS;
+
 typedef enum CONNECT_RETURN_CODE_TAG
 {
     CONNECTION_ACCEPTED = 0x00,

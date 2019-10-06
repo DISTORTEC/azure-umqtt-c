@@ -74,7 +74,6 @@ MOCKABLE_FUNCTION(, int, mqtt_prop_add_string_array_property, MQTT_PROPERTY_TYPE
 
 MOCKABLE_FUNCTION(, PROPERTY_ITERATOR_HANDLE, mqtt_prop_get_iterator);
 MOCKABLE_FUNCTION(, MQTT_PROPERTY_TYPE, mqtt_prop_get_property_type, PROPERTY_ITERATOR_HANDLE, handle);
-MOCKABLE_FUNCTION(, MQTT_PROPERTY_TYPE, mqtt_prop_get_property_type, PROPERTY_ITERATOR_HANDLE, handle);
 MOCKABLE_FUNCTION(, const void*, mqtt_prop_get_next_value, PROPERTY_ITERATOR_HANDLE, handle);
 
 

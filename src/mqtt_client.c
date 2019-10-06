@@ -18,11 +18,11 @@
 #include "azure_c_shared_utility/xlogging.h"
 
 #include "azure_umqtt_c/mqtt_client.h"
-#include "azure_umqtt_c/mqtt_codec_v3.h"
+#include "azure_umqtt_c/internal/mqtt_codec_v3.h"
 
 #define VARIABLE_HEADER_OFFSET          2
 #define RETAIN_FLAG_MASK                0x1
-#define QOS_LEAST_ONCE_FLAG_MASK        0x2
+#define QOS_LEAST_ONCE_FLAG_MASK        0x27
 #define QOS_EXACTLY_ONCE_FLAG_MASK      0x4
 #define DUPLICATE_FLAG_MASK             0x8
 #define CONNECT_PACKET_MASK             0xf0

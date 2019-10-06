@@ -10,8 +10,8 @@
 #include "azure_macro_utils/macro_utils.h"
 #include "azure_c_shared_utility/xlogging.h"
 
-#include "azure_umqtt_c/mqtt_codec_v3.h"
-#include "azure_umqtt_c/mqtt_codec_util.h"
+#include "azure_umqtt_c/internal/mqtt_codec_v3.h"
+#include "azure_umqtt_c/internal/mqtt_codec_util.h"
 
 #include <inttypes.h>
 
@@ -36,6 +36,7 @@
 #define CONNECT_VARIABLE_HEADER_SIZE        10
 #define SUBSCRIBE_FIXED_HEADER_FLAG         0x2
 #define UNSUBSCRIBE_FIXED_HEADER_FLAG       0x2
+#define CONNECT_VAR_HEADER_SIZE             10
 
 #define MAX_SEND_SIZE                       0xFFFFFF7F // 268435455
 
@@ -506,6 +507,29 @@ static void complete_packet_data(CODEC_V3_INSTANCE* codec_data)
     codec_data->headerFlags = 0;
     BUFFER_delete(codec_data->headerData);
     codec_data->headerData = NULL;
+}
+
+static BUFFER_HANDLE construct_connect_var_header(TRACE_LOG_CALLBACK trace_func, void* trace_ctx, const MQTT_CLIENT_OPTIONS* mqtt_options, uint8_t protocol_level)
+{
+    BUFFER_HANDLE result;
+    if ((result = BUFFER_create_with_size(CONNECT_VAR_HEADER_SIZE)) == NULL)
+    {
+        LogError("Failure creating buffer");
+    }
+    else
+    {
+        if (trace_func != NULL)
+        {
+            trace_func(trace_ctx, " | VER: %d | KEEPALIVE: %d", protocol_level, mqtt_options->keepAliveInterval);
+        }
+
+        uint8_t* iterator = BUFFER_u_char(result);
+        byteutil_writeUTF(&iterator, "MQTT", 4);
+        byteutil_writeByte(&iterator, protocol_level);
+        byteutil_writeByte(&iterator, 0); // Flags will be entered later
+        byteutil_writeInt(&iterator, mqtt_options->keepAliveInterval);
+    }
+    return result;
 }
 
 void mqtt_codec_reset(CODEC_V3_INSTANCE* codec_data)

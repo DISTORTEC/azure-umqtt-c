@@ -5,6 +5,7 @@ usePermissiveRulesForSamplesAndTests()
 
 #this is CMakeLists.txt for the folder tests of mqtt
 add_subdirectory(mqtt_client_ut)
+add_subdirectory(mqtt_client_v5_ut)
 add_subdirectory(mqtt_codec_v3_ut)
 add_subdirectory(mqtt_message_ut)
 

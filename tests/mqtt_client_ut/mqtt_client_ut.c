@@ -42,7 +42,7 @@ static void my_gballoc_free(void* ptr)
 #include "azure_c_shared_utility/strings.h"
 #include "azure_c_shared_utility/threadapi.h"
 
-#include "azure_umqtt_c/mqtt_codec_v3.h"
+#include "azure_umqtt_c/internal/mqtt_codec_v3.h"
 #include "azure_umqtt_c/mqtt_message.h"
 #include "azure_c_shared_utility/gballoc.h"
 #include "azure_c_shared_utility/platform.h"

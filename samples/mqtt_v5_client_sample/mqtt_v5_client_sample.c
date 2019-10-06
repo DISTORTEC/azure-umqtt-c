@@ -63,13 +63,13 @@ static void OnCloseComplete(void* context)
     g_close_complete = false;
 }
 
-static void OnOperationComplete(MQTT_CLIENT_V5_HANDLE handle, MQTT_CLIENT_EVENT_RESULT actionResult, const void* msgInfo, void* callbackCtx)
+static void OnOperationComplete(MQTT_CLIENT_V5_HANDLE handle, MQTT_V5_CLIENT_EVENT_RESULT action_result, const void* msgInfo, void* callbackCtx)
 {
     (void)msgInfo;
     (void)callbackCtx;
-    switch (actionResult)
+    switch (action_result)
     {
-        case MQTT_CLIENT_ON_CONNACK:
+/*        case MQTT_CLIENT_ON_CONNACK:
         {
             (void)printf("ConnAck function called\r\n");
 
@@ -79,11 +79,11 @@ static void OnOperationComplete(MQTT_CLIENT_V5_HANDLE handle, MQTT_CLIENT_EVENT_
             subscribe[1].subscribeTopic = TOPIC_NAME_B;
             subscribe[1].qosReturn = DELIVER_EXACTLY_ONCE;
 
-            /*if (mqtt_client_v5_subscribe(handle, PACKET_ID_VALUE++, subscribe, sizeof(subscribe) / sizeof(subscribe[0])) != 0)
+            if (mqtt_client_v5_subscribe(handle, PACKET_ID_VALUE++, subscribe, sizeof(subscribe) / sizeof(subscribe[0])) != 0)
             {
                 (void)printf("%d: mqtt_client_v5_subscribe failed\r\n", __LINE__);
                 g_continue = false;
-            }*/
+            }
             mqtt_client_v5_disconnect(handle, NULL, NULL);
             break;
         }
@@ -97,11 +97,11 @@ static void OnOperationComplete(MQTT_CLIENT_V5_HANDLE handle, MQTT_CLIENT_EVENT_
             }
             else
             {
-                /*if (mqtt_client_v5_publish(handle, msg))
+                if (mqtt_client_v5_publish(handle, msg))
                 {
                     (void)printf("%d: mqtt_client_v5_publish failed\r\n", __LINE__);
                     g_continue = false;
-                }*/
+                }
                 mqttmessage_destroy(msg);
             }
             // Now send a message that will get
@@ -121,11 +121,11 @@ static void OnOperationComplete(MQTT_CLIENT_V5_HANDLE handle, MQTT_CLIENT_EVENT_
         }
         case MQTT_CLIENT_ON_PUBLISH_COMP:
         {
-            /*if (mqtt_client_v5_unsubscribe(handle, PACKET_ID_VALUE++, TOPIC_NAME_A, 1) != 0)
+            if (mqtt_client_v5_unsubscribe(handle, PACKET_ID_VALUE++, TOPIC_NAME_A, 1) != 0)
             {
                 (void)printf("%d: mqtt_client_v5_unsubscribe failed\r\n", __LINE__);
                 g_continue = false;
-            }*/
+            }
             // Done so send disconnect
             break;
         }
@@ -139,10 +139,10 @@ static void OnOperationComplete(MQTT_CLIENT_V5_HANDLE handle, MQTT_CLIENT_EVENT_
             break;
         }
         case MQTT_CLIENT_ON_PING_RESPONSE:
-            break;
+            break;*/
         default:
         {
-            (void)printf("unexpected value received for enumeration (%d)\n", (int)actionResult);
+            (void)printf("unexpected value received for enumeration (%d)\n", (int)action_result);
         }
     }
 }

@@ -10,7 +10,7 @@
 #include "azure_c_shared_utility/xlogging.h"
 #include "azure_macro_utils/macro_utils.h"
 
-#include "azure_umqtt_c/mqtt_codec_v5.h"
+#include "azure_umqtt_c/internal/mqtt_codec_v5.h"
 #include "azure_umqtt_c/mqtt_properties.h"
 
 #include <inttypes.h>
@@ -109,7 +109,6 @@ void codec_v5_destroy(MQTT_CODEC_V5_HANDLE handle)
 BUFFER_HANDLE codec_v5_connect(MQTT_CODEC_V5_HANDLE handle, const MQTT_CLIENT_OPTIONS* mqtt_options, MQTT_PROPERTY_HANDLE prop_handle)
 {
     BUFFER_HANDLE result;
-    /* Codes_SRS_MQTT_CODEC_07_008: [If the parameters mqttOptions is NULL then codec_v5_connect shall return a null value.] */
     if (mqtt_options == NULL || handle == NULL)
     {
         result = NULL;
@@ -122,7 +121,7 @@ BUFFER_HANDLE codec_v5_connect(MQTT_CODEC_V5_HANDLE handle, const MQTT_CLIENT_OP
         }
 
         // Construct the variable header for the connect packet
-        if ((result = construct_connect_var_header(handle->trace_func, handle->trace_ctx, mqtt_options, PROTOCOL_NUMBER)) == NULL)
+        /*if ((result = construct_connect_var_header(handle->trace_func, handle->trace_ctx, mqtt_options, PROTOCOL_NUMBER)) == NULL)
         {
             LogError("Failure creating variable header");
         }
@@ -134,11 +133,10 @@ BUFFER_HANDLE codec_v5_connect(MQTT_CODEC_V5_HANDLE handle, const MQTT_CLIENT_OP
         }
         else if (construct_fixed_header(result, CONNECT_TYPE, 0) != 0)
         {
-            /* Codes_SRS_MQTT_CODEC_07_010: [If any error is encountered then mqtt_codec_connect shall return NULL.] */
             LogError("Failure constructing fixed");
             BUFFER_delete(result);
             result = NULL;
-        }
+        }*/
     }
     return result;
 }

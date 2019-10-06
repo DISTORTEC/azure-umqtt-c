@@ -42,8 +42,8 @@ extern "C" {
 
 #undef ENABLE_MOCKS
 
-#include "azure_umqtt_c/mqtt_codec_v3.h"
-#include "azure_umqtt_c/mqtt_codec_util.h"
+#include "azure_umqtt_c/internal/mqtt_codec_v3.h"
+#include "azure_umqtt_c/internal/mqtt_codec_util.h"
 
 #ifdef __cplusplus
 extern "C"
