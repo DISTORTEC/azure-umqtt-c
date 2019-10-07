@@ -180,7 +180,7 @@ int main(void)
         {
             mqtt_client_v5_set_trace(mqttHandle, true, false);
 
-            MQTT_CLIENT_OPTIONS options = { 0 };
+            MQTT_V5_CLIENT_OPTIONS options = { 0 };
             options.clientId = "azureiotclient";
             options.willMessage = NULL;
             options.username = NULL;

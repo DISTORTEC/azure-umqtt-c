@@ -60,7 +60,7 @@ typedef void(*ON_MQTT_DISCONNECTED_CALLBACK)(void* user_ctx);
 MOCKABLE_FUNCTION(, MQTT_CLIENT_V5_HANDLE, mqtt_client_v5_create, ON_MQTT_MESSAGE_RECV_CALLBACK, msg_recv_callback, ON_MQTT_OPERATION_CALLBACK, operation_cb, void*, op_user_ctx, ON_MQTT_V5_ERROR_CALLBACK, on_error_cb, void*, errorCBCtx);
 MOCKABLE_FUNCTION(, void, mqtt_client_v5_destroy, MQTT_CLIENT_V5_HANDLE, handle);
 
-MOCKABLE_FUNCTION(, int, mqtt_client_v5_connect, MQTT_CLIENT_V5_HANDLE, handle, XIO_HANDLE, xioHandle, MQTT_CLIENT_OPTIONS*, mqttOptions);
+MOCKABLE_FUNCTION(, int, mqtt_client_v5_connect, MQTT_CLIENT_V5_HANDLE, handle, XIO_HANDLE, xioHandle, const MQTT_V5_CLIENT_OPTIONS*, mqttOptions);
 MOCKABLE_FUNCTION(, int, mqtt_client_v5_disconnect, MQTT_CLIENT_V5_HANDLE, handle, ON_MQTT_DISCONNECTED_CALLBACK, callback, void*, ctx);
 
 MOCKABLE_FUNCTION(, int, mqtt_client_v5_subscribe, MQTT_CLIENT_V5_HANDLE, handle, uint16_t, packetId, SUBSCRIBE_PAYLOAD*, subscribeList, size_t, count);

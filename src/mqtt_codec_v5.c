@@ -106,7 +106,7 @@ void codec_v5_destroy(MQTT_CODEC_V5_HANDLE handle)
     }
 }
 
-BUFFER_HANDLE codec_v5_connect(MQTT_CODEC_V5_HANDLE handle, const MQTT_CLIENT_OPTIONS* mqtt_options, MQTT_PROPERTY_HANDLE prop_handle)
+BUFFER_HANDLE codec_v5_connect(MQTT_CODEC_V5_HANDLE handle, const MQTT_V5_CLIENT_OPTIONS* mqtt_options, MQTT_PROPERTY_HANDLE prop_handle)
 {
     BUFFER_HANDLE result;
     if (mqtt_options == NULL || handle == NULL)

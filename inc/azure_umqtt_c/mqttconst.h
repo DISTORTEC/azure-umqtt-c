@@ -76,7 +76,7 @@ typedef struct MQTT_CLIENT_OPTIONS_TAG
     bool log_trace;
 } MQTT_CLIENT_OPTIONS;
 
-typedef struct MQTT_v5_CLIENT_OPTIONS_TAG
+typedef struct MQTT_V5_CLIENT_OPTIONS_TAG
 {
     char* clientId;
     char* willTopic;
@@ -93,7 +93,7 @@ typedef struct MQTT_v5_CLIENT_OPTIONS_TAG
     uint32_t max_packet_size;
     uint32_t session_expiry_interval;
 
-} MQTT_v5_CLIENT_OPTIONS;
+} MQTT_V5_CLIENT_OPTIONS;
 
 typedef enum CONNECT_RETURN_CODE_TAG
 {

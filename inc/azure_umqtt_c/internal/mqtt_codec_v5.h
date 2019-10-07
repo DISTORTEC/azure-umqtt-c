@@ -20,7 +20,7 @@ typedef struct CODEC_V5_INSTANCE_TAG* MQTT_CODEC_V5_HANDLE;
 
 MOCKABLE_FUNCTION(, MQTT_CODEC_V5_HANDLE, codec_v5_create, ON_PACKET_COMPLETE_CALLBACK, on_packet_complete_cb, void*, context);
 MOCKABLE_FUNCTION(, void, codec_v5_destroy, MQTT_CODEC_V5_HANDLE, handle);
-MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v5_connect, MQTT_CODEC_V5_HANDLE, handle, const MQTT_CLIENT_OPTIONS*, mqttOptions, MQTT_PROPERTY_HANDLE, prop_handle);
+MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v5_connect, MQTT_CODEC_V5_HANDLE, handle, const MQTT_V5_CLIENT_OPTIONS*, mqttOptions, MQTT_PROPERTY_HANDLE, prop_handle);
 MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v5_disconnect, MQTT_CODEC_V5_HANDLE, handle, const DISCONNECT_INFO*, info);
 MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v5_publish, MQTT_CODEC_V5_HANDLE, handle, QOS_VALUE, qosValue, bool, duplicateMsg, bool, serverRetain, uint16_t, packetId, const char*, topicName, const uint8_t*, msgBuffer, size_t, buffLen);
 MOCKABLE_FUNCTION(, BUFFER_HANDLE, codec_v5_publish_ack, uint16_t, packetId);
