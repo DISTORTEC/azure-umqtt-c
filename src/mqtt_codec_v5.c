@@ -108,6 +108,7 @@ void codec_v5_destroy(MQTT_CODEC_V5_HANDLE handle)
 
 BUFFER_HANDLE codec_v5_connect(MQTT_CODEC_V5_HANDLE handle, const MQTT_V5_CLIENT_OPTIONS* mqtt_options, MQTT_PROPERTY_HANDLE prop_handle)
 {
+    (void)prop_handle;
     BUFFER_HANDLE result;
     if (mqtt_options == NULL || handle == NULL)
     {
@@ -121,11 +122,11 @@ BUFFER_HANDLE codec_v5_connect(MQTT_CODEC_V5_HANDLE handle, const MQTT_V5_CLIENT
         }
 
         // Construct the variable header for the connect packet
-        /*if ((result = construct_connect_var_header(handle->trace_func, handle->trace_ctx, mqtt_options, PROTOCOL_NUMBER)) == NULL)
+        if ((result = construct_connect_var_header(handle->trace_func, handle->trace_ctx, mqtt_options->keep_alive_interval, PROTOCOL_NUMBER)) == NULL)
         {
             LogError("Failure creating variable header");
         }
-        else if (construct_message_properties(result, prop_handle) != 0)
+        /*else if (construct_message_properties(result, prop_handle) != 0)
         {
             LogError("Failure constructing connect properties");
             BUFFER_delete(result);

@@ -63,10 +63,11 @@ static void OnCloseComplete(void* context)
     g_close_complete = false;
 }
 
-static void OnOperationComplete(MQTT_CLIENT_V5_HANDLE handle, MQTT_V5_CLIENT_EVENT_RESULT action_result, const void* msgInfo, void* callbackCtx)
+static void on_operation_complete(MQTT_CLIENT_V5_HANDLE handle, MQTT_V5_CLIENT_EVENT_RESULT action_result, const void* msgInfo, void* callbackCtx)
 {
     (void)msgInfo;
     (void)callbackCtx;
+    (void)handle;
     switch (action_result)
     {
 /*        case MQTT_CLIENT_ON_CONNACK:
@@ -171,7 +172,7 @@ int main(void)
     }
     else
     {
-        MQTT_CLIENT_V5_HANDLE mqttHandle = mqtt_client_v5_create(OnRecvCallback, OnOperationComplete, NULL, OnErrorComplete, NULL);
+        MQTT_CLIENT_V5_HANDLE mqttHandle = mqtt_client_v5_create(OnRecvCallback, on_operation_complete, NULL, OnErrorComplete, NULL);
         if (mqttHandle == NULL)
         {
             (void)printf("mqtt_client_v5_init failed\r\n");
@@ -185,7 +186,7 @@ int main(void)
             options.willMessage = NULL;
             options.username = NULL;
             options.password = NULL;
-            options.keepAliveInterval = 10;
+            options.keep_alive_interval = 10;
             options.useCleanSession = true;
             options.qualityOfServiceValue = DELIVER_AT_MOST_ONCE;
 

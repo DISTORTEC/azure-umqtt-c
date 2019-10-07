@@ -83,7 +83,7 @@ typedef struct MQTT_V5_CLIENT_OPTIONS_TAG
     char* willMessage;
     char* username;
     char* password;
-    uint16_t keepAliveInterval;
+    uint16_t keep_alive_interval;
     bool messageRetain;
     bool useCleanSession;
     QOS_VALUE qualityOfServiceValue;

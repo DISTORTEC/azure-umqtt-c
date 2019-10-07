@@ -91,6 +91,16 @@ static SUBSCRIBE_PAYLOAD TEST_SUBSCRIBE_PAYLOAD[] = { {"subTopic1", DELIVER_AT_L
 static const char* TEST_UNSUBSCRIPTION_TOPIC[] = { "subTopic1", "subTopic2" };
 
 static const XIO_HANDLE TEST_IO_HANDLE = (XIO_HANDLE)0x11;
+ON_PACKET_COMPLETE_CALLBACK g_packetComplete;
+ON_IO_OPEN_COMPLETE g_openComplete;
+ON_BYTES_RECEIVED g_bytesRecv;
+ON_IO_ERROR g_ioError;
+ON_SEND_COMPLETE g_sendComplete;
+void* g_onCompleteCtx;
+void* g_onSendCtx;
+void* g_bytesRecvCtx;
+void* g_ioErrorCtx;
+static tickcounter_ms_t g_current_ms;
 /*static const MQTT_CODEC_V3_HANDLE TEST_MQTTCODEC_HANDLE = (MQTT_CODEC_V3_HANDLE)0x13;
 static const MQTT_MESSAGE_HANDLE TEST_MESSAGE_HANDLE = (MQTT_MESSAGE_HANDLE)0x14;
 static const uint16_t TEST_KEEP_ALIVE_INTERVAL = 20;
@@ -101,16 +111,7 @@ static bool g_operationCallbackInvoked;
 static bool g_errorCallbackInvoked;
 static bool g_msgRecvCallbackInvoked;
 static bool g_codec_v3_publish_func_fail;
-static tickcounter_ms_t g_current_ms;
-ON_PACKET_COMPLETE_CALLBACK g_packetComplete;
-ON_IO_OPEN_COMPLETE g_openComplete;
-ON_BYTES_RECEIVED g_bytesRecv;
-ON_IO_ERROR g_ioError;
-ON_SEND_COMPLETE g_sendComplete;
-void* g_onCompleteCtx;
-void* g_onSendCtx;
-void* g_bytesRecvCtx;
-void* g_ioErrorCtx;*/
+*/
 
 typedef struct TEST_COMPLETE_DATA_INSTANCE_TAG
 {
@@ -137,7 +138,7 @@ extern "C" {
     static MQTT_CODEC_V5_HANDLE my_codec_v5_create(ON_PACKET_COMPLETE_CALLBACK packetComplete, void* callContext)
     {
         (void)callContext;
-        //g_packetComplete = packetComplete;
+        g_packetComplete = packetComplete;
         return (MQTT_CODEC_V5_HANDLE)my_gballoc_malloc(1);
     }
 
@@ -150,12 +151,12 @@ extern "C" {
     {
         (void)handle;
         /* Bug? : This is a bit wierd, why are we not using on_io_error and on_bytes_received? */
-        /*g_openComplete = on_io_open_complete;
+        g_openComplete = on_io_open_complete;
         g_onCompleteCtx = on_io_open_complete_context;
         g_bytesRecv = on_bytes_received;
         g_bytesRecvCtx = on_bytes_received_context;
         g_ioError = on_io_error;
-        g_ioErrorCtx = on_io_error_context;*/
+        g_ioErrorCtx = on_io_error_context;
         return 0;
     }
 
@@ -164,8 +165,8 @@ extern "C" {
         (void)xio;
         (void)buffer;
         (void)size;
-        //g_sendComplete = on_send_complete;
-        //g_onSendCtx = callback_context;
+        g_sendComplete = on_send_complete;
+        g_onSendCtx = callback_context;
         return 0;
     }
 
@@ -182,7 +183,7 @@ extern "C" {
     static int my_tickcounter_get_current_ms(TICK_COUNTER_HANDLE tick_counter, tickcounter_ms_t* current_ms)
     {
         (void)tick_counter;
-        //*current_ms = g_current_ms;
+        *current_ms = g_current_ms;
         return 0;
     }
 
@@ -427,6 +428,9 @@ TEST_FUNCTION_CLEANUP(method_cleanup)
 
 static void setup_publish_callback_mocks(unsigned char* PUBLISH_RESP, size_t length, QOS_VALUE qos_value)
 {
+    (void)PUBLISH_RESP;
+    (void)length;
+    (void)qos_value;
     /*STRICT_EXPECTED_CALL(BUFFER_length(TEST_BUFFER_HANDLE)).SetReturn(length);
     STRICT_EXPECTED_CALL(BUFFER_u_char(TEST_BUFFER_HANDLE)).SetReturn(PUBLISH_RESP);
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
@@ -560,9 +564,14 @@ static void TestRecvCallback(MQTT_MESSAGE_HANDLE msgHandle, void* context)
 
 static void test_operation_callback(MQTT_CLIENT_V5_HANDLE handle, MQTT_V5_CLIENT_EVENT_RESULT action_result, const void* msg_info, void* user_ctx)
 {
+    (void)action_result;
+    (void)msg_info;
+    (void)user_ctx;
     (void)handle;
     switch (action_result)
     {
+        case 1:
+            break;
         default:
             ASSERT_FAIL("Unexpected enum value: %d", action_result);
             break;
@@ -662,6 +671,8 @@ static void test_error_callback(MQTT_V5_CLIENT_EVENT_ERROR error, void* user_ctx
     (void)user_ctx;
     switch (error)
     {
+        case 1:
+            break;
         default:
             ASSERT_FAIL("Unexpected enum value: %d", error);
             break;

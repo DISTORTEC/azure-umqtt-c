@@ -606,7 +606,7 @@ static int clone_mqtt_options(MQTT_CLIENT_V5* mqtt_client, const MQTT_V5_CLIENT_
     }
     if (result == 0)
     {
-        mqtt_client->mqttOptions.keepAliveInterval = mqttOptions->keepAliveInterval;
+        mqtt_client->mqttOptions.keep_alive_interval = mqttOptions->keep_alive_interval;
         mqtt_client->mqttOptions.messageRetain = mqttOptions->messageRetain;
         mqtt_client->mqttOptions.useCleanSession = mqttOptions->useCleanSession;
         mqtt_client->mqttOptions.qualityOfServiceValue = mqttOptions->qualityOfServiceValue;
@@ -728,10 +728,13 @@ static void ProcessPublishMessage(MQTT_CLIENT_V5* mqtt_client, uint8_t* initialP
 
 static void recv_complete_callback(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData)
 {
+    (void)packet;
+    (void)flags;
+    (void)headerData;
     MQTT_CLIENT_V5* mqtt_client = (MQTT_CLIENT_V5*)context;
-    /*if (mqtt_client != NULL)
+    if (mqtt_client != NULL)
     {
-        size_t packetLength = 0;
+        /*size_t packetLength = 0;
         uint8_t* iterator = NULL;
         if (headerData != NULL)
         {
@@ -907,12 +910,12 @@ static void recv_complete_callback(void* context, CONTROL_PACKET_TYPE packet, in
                 default:
                     break;
             }
-        }
+        }*/
     }
     else
     {
         LogError("recv_complete_callback context failed.");
-    }*/
+    }
 }
 
 //#if defined(__GNUC__)
@@ -1076,8 +1079,8 @@ int mqtt_client_v5_connect(MQTT_CLIENT_V5_HANDLE handle, XIO_HANDLE xioHandle, c
         mqtt_client->xioHandle = xioHandle;
         mqtt_client->packetState = UNKNOWN_TYPE;
         mqtt_client->qosValue = mqttOptions->qualityOfServiceValue;
-        mqtt_client->keep_alive_interval = mqttOptions->keepAliveInterval;
-        mqtt_client->maxPingRespTime = (DEFAULT_MAX_PING_RESPONSE_TIME < mqttOptions->keepAliveInterval/2) ? DEFAULT_MAX_PING_RESPONSE_TIME : mqttOptions->keepAliveInterval/2;
+        mqtt_client->keep_alive_interval = mqttOptions->keep_alive_interval;
+        mqtt_client->maxPingRespTime = (DEFAULT_MAX_PING_RESPONSE_TIME < mqttOptions->keep_alive_interval/2) ? DEFAULT_MAX_PING_RESPONSE_TIME : mqttOptions->keep_alive_interval/2;
 
         ON_BYTES_RECEIVED recv_func = codec_v5_get_recv_func();
         if (clone_mqtt_options(mqtt_client, mqttOptions) != 0)

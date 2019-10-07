@@ -509,29 +509,6 @@ static void complete_packet_data(CODEC_V3_INSTANCE* codec_data)
     codec_data->headerData = NULL;
 }
 
-static BUFFER_HANDLE construct_connect_var_header(TRACE_LOG_CALLBACK trace_func, void* trace_ctx, const MQTT_CLIENT_OPTIONS* mqtt_options, uint8_t protocol_level)
-{
-    BUFFER_HANDLE result;
-    if ((result = BUFFER_create_with_size(CONNECT_VAR_HEADER_SIZE)) == NULL)
-    {
-        LogError("Failure creating buffer");
-    }
-    else
-    {
-        if (trace_func != NULL)
-        {
-            trace_func(trace_ctx, " | VER: %d | KEEPALIVE: %d", protocol_level, mqtt_options->keepAliveInterval);
-        }
-
-        uint8_t* iterator = BUFFER_u_char(result);
-        byteutil_writeUTF(&iterator, "MQTT", 4);
-        byteutil_writeByte(&iterator, protocol_level);
-        byteutil_writeByte(&iterator, 0); // Flags will be entered later
-        byteutil_writeInt(&iterator, mqtt_options->keepAliveInterval);
-    }
-    return result;
-}
-
 void mqtt_codec_reset(CODEC_V3_INSTANCE* codec_data)
 {
     if (codec_data != NULL)
@@ -591,7 +568,7 @@ BUFFER_HANDLE codec_v3_connect(MQTT_CODEC_V3_HANDLE handle, const MQTT_CLIENT_OP
         }
 
         // Construct the variable header for the connect packet
-        if ((result = construct_connect_var_header(mqtt_codec->trace_func, mqtt_codec->trace_ctx, mqtt_options, PROTOCOL_NUMBER)) == NULL)
+        if ((result = construct_connect_var_header(mqtt_codec->trace_func, mqtt_codec->trace_ctx, mqtt_options->keepAliveInterval, PROTOCOL_NUMBER)) == NULL)
         {
             LogError("Failure creating variable header");
         }

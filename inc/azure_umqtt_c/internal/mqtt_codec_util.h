@@ -28,6 +28,7 @@ typedef void(*TRACE_LOG_CALLBACK)(void* context, const char* log_value, ...);
 MOCKABLE_FUNCTION(, int, construct_fixed_header, BUFFER_HANDLE, ctrl_packet, CONTROL_PACKET_TYPE, packet_type, uint8_t, flags);
 
 extern int encode_variable_byte_integer(uint8_t stream_bytes[4], size_t* pos, uint32_t* vbi_value);
+MOCKABLE_FUNCTION(, BUFFER_HANDLE, construct_connect_var_header, TRACE_LOG_CALLBACK, trace_func, void*, trace_ctx, uint16_t, keep_alive_interval, uint8_t, protocol_level);
 
 MOCKABLE_FUNCTION(, const char*, retrieve_qos_value, QOS_VALUE, value);
 MOCKABLE_FUNCTION(, void, byteutil_writeByte, uint8_t**, buffer, uint8_t, value);

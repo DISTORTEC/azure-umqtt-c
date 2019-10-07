@@ -1361,7 +1361,7 @@ void mqtt_client_dowork(MQTT_CLIENT_HANDLE handle)
                     }
                     else if (((current_ms - mqtt_client->packetSendTimeMs) / 1000) >= mqtt_client->keepAliveInterval)
                     {
-                        /*Codes_SRS_MQTT_CLIENT_07_026: [if keepAliveInternal is > 0 and the send time is greater than the MQTT KeepAliveInterval then it shall construct an MQTT PINGREQ packet.]*/
+                        /*Codes_SRS_MQTT_CLIENT_07_026: [if keepAliveInternal is > 0 and the send time is greater than the MQTT keepAliveInterval then it shall construct an MQTT PINGREQ packet.]*/
                         BUFFER_HANDLE pingPacket = codec_v3_ping();
                         if (pingPacket != NULL)
                         {
